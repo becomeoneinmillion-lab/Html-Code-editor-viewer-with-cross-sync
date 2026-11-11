@@ -13,10 +13,17 @@
       --accent: #89b4fa;
       --success: #a6e3a1;
       --warning: #f9e2af;
+      --error: #f38ba8;
+      --gutter-bg: #181825;
+      --gutter-color: #6c7086;
+      --active-line: rgba(137, 180, 250, 0.08);
+      --editor-font: "JetBrains Mono", Consolas, Menlo, "Courier New", monospace;
+      --line-height: 21px;
+      --font-size: 13px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       display: flex;
@@ -33,6 +40,7 @@
       align-items: center;
       gap: 12px;
       justify-content: space-between;
+      z-index: 10;
     }
     .header-group {
       display: flex;
@@ -72,36 +80,17 @@
       display: flex;
       flex: 1;
       height: calc(100vh - 55px);
+      position: relative;
     }
     .editor-pane, .preview-pane {
       flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
+      height: 100%;
     }
     .editor-pane {
       border-right: 1px solid var(--border);
-    }
-    textarea {
-      flex: 1;
-      width: 100%;
-      height: 100%;
-      background: #181825;
-      color: #cdd6f4;
-      border: none;
-      resize: none;
-      font-family: "JetBrains Mono", Consolas, Menlo, monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      padding: 14px;
-      outline: none;
-      tab-size: 2;
-    }
-    iframe {
-      flex: 1;
-      width: 100%;
-      border: none;
-      background: #ffffff;
     }
     .pane-header {
       background: #181825;
@@ -112,11 +101,115 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
+    }
+    
+    /* Code Editor Container with Line Numbers */
+    .editor-workspace {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #181825;
+    }
+    .gutter {
+      width: 52px;
+      padding: 12px 0;
+      background: var(--gutter-bg);
+      border-right: 1px solid var(--border);
+      color: var(--gutter-color);
+      font-family: var(--editor-font);
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      text-align: right;
+      user-select: none;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .gutter-line {
+      padding-right: 10px;
+      height: var(--line-height);
+      cursor: pointer;
+    }
+    .gutter-line:hover {
+      color: var(--accent);
+    }
+    .textarea-wrapper {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+    textarea {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      color: var(--text);
+      border: none;
+      resize: none;
+      font-family: var(--editor-font);
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      padding: 12px 14px;
+      outline: none;
+      tab-size: 2;
+      white-space: pre;
+      overflow: auto;
+      word-break: normal;
+    }
+    
+    /* Search & Replace Floating Bar */
+    .search-panel {
+      position: absolute;
+      top: 36px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      z-index: 50;
+      width: 330px;
+    }
+    .search-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .search-row input {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .search-row button {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .search-stats {
+      font-size: 11px;
+      color: var(--gutter-color);
+      min-width: 45px;
+      text-align: center;
+    }
+
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #ffffff;
     }
     #status {
       font-size: 12px;
       color: var(--success);
       margin-left: 8px;
+    }
+    .pos-indicator {
+      font-family: var(--editor-font);
+      font-size: 11px;
+      color: var(--gutter-color);
     }
   </style>
 </head>
@@ -125,14 +218,14 @@
   <header>
     <div class="header-group">
       <label for="baseFileName">Base Name:</label>
-      <input type="text" id="baseFileName" value="app" style="width: 120px;" placeholder="Filename">
+      <input type="text" id="baseFileName" value="app" style="width: 110px;" placeholder="Filename">
       <span class="badge" id="versionBadge">v1.0</span>
       <button class="primary" id="pasteAiBtn" title="Detects code updates and auto-increments version">Paste AI Code (+0.1)</button>
       <button id="majorIncBtn" title="Bump major release">+1.0 Major</button>
     </div>
 
     <div class="header-group">
-      <input type="password" id="gasUrl" placeholder="Paste Apps Script Web App URL" style="width: 220px;">
+      <input type="password" id="gasUrl" placeholder="Paste Apps Script Web App URL" style="width: 210px;">
       <button id="saveDriveBtn">Sync to Drive</button>
       <button id="loadDriveBtn">Pull from Drive</button>
       <span id="status"></span>
@@ -143,9 +236,38 @@
     <section class="editor-pane">
       <div class="pane-header">
         <span id="resolvedName">app_v1.0.html</span>
-        <button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span class="pos-indicator" id="cursorPos">Ln 1, Col 1</span>
+          <button id="searchToggleBtn" style="padding: 2px 8px; font-size: 11px;">Find (Ctrl+F)</button>
+          <button id="gotoLineBtn" style="padding: 2px 8px; font-size: 11px;">Go to Line (Ctrl+G)</button>
+          <button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
+        </div>
       </div>
-      <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code or click 'Paste AI Code' -->"></textarea>
+
+      <!-- Integrated Floating Find / Replace Box -->
+      <div class="search-panel" id="searchPanel">
+        <div class="search-row">
+          <input type="text" id="findInput" placeholder="Find...">
+          <span class="search-stats" id="searchCount">0/0</span>
+          <button id="findPrevBtn" title="Previous match">▲</button>
+          <button id="findNextBtn" title="Next match">▼</button>
+          <button id="closeSearchBtn" style="color: var(--error);">✕</button>
+        </div>
+        <div class="search-row">
+          <input type="text" id="replaceInput" placeholder="Replace with...">
+          <button id="replaceBtn">Replace</button>
+          <button id="replaceAllBtn">All</button>
+        </div>
+      </div>
+
+      <div class="editor-workspace">
+        <div class="gutter" id="lineGutter">
+          <div class="gutter-line">1</div>
+        </div>
+        <div class="textarea-wrapper">
+          <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code or click 'Paste AI Code' -->"></textarea>
+        </div>
+      </div>
     </section>
 
     <section class="preview-pane">
@@ -165,9 +287,20 @@
     const versionBadge = document.getElementById("versionBadge");
     const resolvedName = document.getElementById("resolvedName");
     const codeEditor = document.getElementById("codeEditor");
+    const lineGutter = document.getElementById("lineGutter");
     const previewFrame = document.getElementById("previewFrame");
     const gasUrlInput = document.getElementById("gasUrl");
     const statusText = document.getElementById("status");
+    const cursorPos = document.getElementById("cursorPos");
+
+    // Search elements
+    const searchPanel = document.getElementById("searchPanel");
+    const findInput = document.getElementById("findInput");
+    const replaceInput = document.getElementById("replaceInput");
+    const searchCount = document.getElementById("searchCount");
+
+    let matchIndices = [];
+    let currentMatchIndex = -1;
 
     // Persist GAS URL locally
     gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
@@ -189,33 +322,222 @@
       previewFrame.src = URL.createObjectURL(blob);
     }
 
+    // Line Numbers & Gutter Management
+    function updateLineNumbers() {
+      const lines = codeEditor.value.split("\n");
+      const totalLines = lines.length || 1;
+      
+      let gutterHTML = "";
+      for (let i = 1; i <= totalLines; i++) {
+        gutterHTML += `<div class="gutter-line" data-line="${i}">${i}</div>`;
+      }
+      lineGutter.innerHTML = gutterHTML;
+      lineGutter.scrollTop = codeEditor.scrollTop;
+    }
+
+    function updateCursorInfo() {
+      const text = codeEditor.value.substring(0, codeEditor.selectionStart);
+      const lines = text.split("\n");
+      const currentLine = lines.length;
+      const currentCol = lines[lines.length - 1].length + 1;
+      cursorPos.textContent = `Ln ${currentLine}, Col ${currentCol}`;
+    }
+
+    // Synchronize scrolling between editor and gutter
+    codeEditor.addEventListener("scroll", () => {
+      lineGutter.scrollTop = codeEditor.scrollTop;
+    });
+
     codeEditor.addEventListener("input", () => {
-      // Debounced simple preview update
+      updateLineNumbers();
+      updateCursorInfo();
       clearTimeout(window.previewTimeout);
       window.previewTimeout = setTimeout(updatePreview, 400);
     });
 
+    codeEditor.addEventListener("click", updateCursorInfo);
+    codeEditor.addEventListener("keyup", (e) => {
+      updateCursorInfo();
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        updateCursorInfo();
+      }
+    });
+
+    // Go to line functionality (Clicking line number or shortcut)
+    lineGutter.addEventListener("click", (e) => {
+      if (e.target.classList.contains("gutter-line")) {
+        goToLine(parseInt(e.target.getAttribute("data-line"), 10));
+      }
+    });
+
+    function goToLine(targetLineNumber) {
+      if (isNaN(targetLineNumber) || targetLineNumber < 1) return;
+      const lines = codeEditor.value.split("\n");
+      if (targetLineNumber > lines.length) targetLineNumber = lines.length;
+
+      let charIndex = 0;
+      for (let i = 0; i < targetLineNumber - 1; i++) {
+        charIndex += lines[i].length + 1;
+      }
+
+      codeEditor.focus();
+      codeEditor.setSelectionRange(charIndex, charIndex + lines[targetLineNumber - 1].length);
+
+      // Scroll cursor into view
+      const lineHeight = 21;
+      codeEditor.scrollTop = (targetLineNumber - 3) * lineHeight;
+      lineGutter.scrollTop = codeEditor.scrollTop;
+      updateCursorInfo();
+    }
+
+    document.getElementById("gotoLineBtn").addEventListener("click", () => {
+      const line = prompt("Jump to line number:");
+      if (line) goToLine(parseInt(line, 10));
+    });
+
+    // Integrated Search and Replace
+    function openSearch() {
+      searchPanel.style.display = "flex";
+      findInput.focus();
+      findInput.select();
+      performFind();
+    }
+
+    function closeSearch() {
+      searchPanel.style.display = "none";
+      codeEditor.focus();
+    }
+
+    document.getElementById("searchToggleBtn").addEventListener("click", openSearch);
+    document.getElementById("closeSearchBtn").addEventListener("click", closeSearch);
+
+    function performFind() {
+      const term = findInput.value;
+      matchIndices = [];
+      currentMatchIndex = -1;
+
+      if (!term) {
+        searchCount.textContent = "0/0";
+        return;
+      }
+
+      const content = codeEditor.value.toLowerCase();
+      const searchStr = term.toLowerCase();
+      let pos = content.indexOf(searchStr);
+
+      while (pos !== -1) {
+        matchIndices.push(pos);
+        pos = content.indexOf(searchStr, pos + searchStr.length);
+      }
+
+      if (matchIndices.length > 0) {
+        currentMatchIndex = 0;
+        selectCurrentMatch();
+      } else {
+        searchCount.textContent = "0/0";
+      }
+    }
+
+    function selectCurrentMatch() {
+      if (currentMatchIndex < 0 || currentMatchIndex >= matchIndices.length) return;
+      searchCount.textContent = `${currentMatchIndex + 1}/${matchIndices.length}`;
+
+      const startIndex = matchIndices[currentMatchIndex];
+      const matchLen = findInput.value.length;
+
+      codeEditor.focus();
+      codeEditor.setSelectionRange(startIndex, startIndex + matchLen);
+
+      // Auto-scroll calculation
+      const linesBefore = codeEditor.value.substring(0, startIndex).split("\n").length;
+      codeEditor.scrollTop = (linesBefore - 4) * 21;
+      lineGutter.scrollTop = codeEditor.scrollTop;
+      updateCursorInfo();
+    }
+
+    findInput.addEventListener("input", performFind);
+
+    document.getElementById("findNextBtn").addEventListener("click", () => {
+      if (!matchIndices.length) return;
+      currentMatchIndex = (currentMatchIndex + 1) % matchIndices.length;
+      selectCurrentMatch();
+    });
+
+    document.getElementById("findPrevBtn").addEventListener("click", () => {
+      if (!matchIndices.length) return;
+      currentMatchIndex = (currentMatchIndex - 1 + matchIndices.length) % matchIndices.length;
+      selectCurrentMatch();
+    });
+
+    document.getElementById("replaceBtn").addEventListener("click", () => {
+      if (currentMatchIndex === -1 || !matchIndices.length) return;
+      const start = matchIndices[currentMatchIndex];
+      const len = findInput.value.length;
+      const rep = replaceInput.value;
+
+      codeEditor.setRangeText(rep, start, start + len, "select");
+      updateLineNumbers();
+      updatePreview();
+      performFind();
+    });
+
+    document.getElementById("replaceAllBtn").addEventListener("click", () => {
+      const term = findInput.value;
+      if (!term) return;
+      const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      codeEditor.value = codeEditor.value.replace(regex, replaceInput.value);
+      updateLineNumbers();
+      updatePreview();
+      performFind();
+    });
+
+    // Keyboard Shortcuts (Ctrl+F, Ctrl+G, Escape, Tab Key Indent)
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        openSearch();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        const line = prompt("Jump to line number:");
+        if (line) goToLine(parseInt(line, 10));
+      }
+      if (e.key === "Escape" && searchPanel.style.display === "flex") {
+        closeSearch();
+      }
+    });
+
+    // Indent handling on Tab
+    codeEditor.addEventListener("keydown", (e) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const start = codeEditor.selectionStart;
+        const end = codeEditor.selectionEnd;
+        codeEditor.setRangeText("  ", start, end, "end");
+        updateLineNumbers();
+      }
+    });
+
     document.getElementById("runCodeBtn").addEventListener("click", updatePreview);
 
-    // AI Paste Handler: Extracts code blocks if markdown is passed and increments minor version
+    // AI Paste Handler: Strips code fences and increments version
     document.getElementById("pasteAiBtn").addEventListener("click", async () => {
       try {
         const text = await navigator.clipboard.readText();
         if (!text) return;
 
         let cleanCode = text;
-        // Strip markdown backticks if AI output wrapped code in ```html ... ```
         const markdownMatch = text.match(/```(?:html|javascript|css)?\s*([\s\S]*?)```/i);
         if (markdownMatch && markdownMatch[1]) {
           cleanCode = markdownMatch[1].trim();
         }
 
-        // Only increment version if code actually changed
         if (codeEditor.value.trim() !== cleanCode.trim()) {
           codeEditor.value = cleanCode;
           minor += 1;
-          currentFileId = null; // Mark as new version branch for Drive
+          currentFileId = null;
           updateVersionDisplay();
+          updateLineNumbers();
           updatePreview();
           showStatus(`Imported & bumped to v${major}.${minor}`);
         } else {
@@ -236,7 +558,7 @@
 
     function showStatus(msg, isError = false) {
       statusText.textContent = msg;
-      statusText.style.color = isError ? "#f38ba8" : "#a6e3a1";
+      statusText.style.color = isError ? "var(--error)" : "var(--success)";
       setTimeout(() => { statusText.textContent = ""; }, 4000);
     }
 
@@ -254,7 +576,6 @@
           fileId: currentFileId
         };
 
-        // Note: Using text/plain avoids CORS preflight failures on Apps Script web app endpoints
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -287,7 +608,6 @@
           return showStatus("No files found in Drive folder", true);
         }
 
-        // Show prompt to select file
         const options = listData.files.map((f, i) => `${i + 1}: ${f.name}`).join("\n");
         const pick = prompt(`Select file number to load:\n${options}`);
         const idx = parseInt(pick, 10) - 1;
@@ -304,7 +624,6 @@
           codeEditor.value = fileData.content;
           currentFileId = targetFile.id;
           
-          // Attempt to parse version from filename (e.g. name_v2.3.html)
           const verMatch = fileData.name.match(/_v(\d+)\.(\d+)\./);
           if (verMatch) {
             major = parseInt(verMatch[1], 10);
@@ -314,6 +633,7 @@
           if (baseMatch) baseNameInput.value = baseMatch;
 
           updateVersionDisplay();
+          updateLineNumbers();
           updatePreview();
           showStatus(`Loaded ${fileData.name}`);
         } else {
@@ -324,8 +644,9 @@
       }
     });
 
-    // Initial render
+    // Initial setup
     updateVersionDisplay();
+    updateLineNumbers();
   </script>
 </body>
 </html>
