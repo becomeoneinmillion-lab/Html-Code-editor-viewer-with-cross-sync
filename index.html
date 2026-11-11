@@ -1,1052 +1,911 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Code Studio & Version Tracker</title>
-
-  <!-- iPadOS / PWA Optimization -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="CodeStudio">
-  <link rel="apple-touch-icon" href="icon.png">
-
-  <style>
-    :root {
-      --bg: #1e1e2e;
-      --surface: #252538;
-      --border: #383850;
-      --text: #cdd6f4;
-      --accent: #89b4fa;
-      --success: #a6e3a1;
-      --warning: #f9e2af;
-      --error: #f38ba8;
-      --gutter-bg: #181825;
-      --gutter-color: #6c7086;
-      --editor-font: "JetBrains Mono", Consolas, Menlo, "Courier New", monospace;
-      --line-height: 21px;
-      --font-size: 13px;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      height: 100dvh;
-      overflow: hidden;
-      user-select: none;
-    }
-    header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 8px 14px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      justify-content: space-between;
-      z-index: 20;
-    }
-    .header-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    input, button, select {
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-family: inherit;
-    }
-    input:focus, select:focus {
-      outline: 1px solid var(--accent);
-      border-color: var(--accent);
-    }
-    button {
-      cursor: pointer;
-      font-weight: 500;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      transition: all 0.15s ease;
-    }
-    button:hover:not(:disabled) { background: #313244; }
-    button:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
-    button.primary { background: #45475a; border-color: var(--accent); color: var(--accent); }
-    button.primary:hover:not(:disabled) { background: var(--accent); color: #11111b; }
-
-    /* Undo / Redo Rounded Icon Buttons */
-    .history-controls {
-      display: flex;
-      gap: 4px;
-      background: #181825;
-      padding: 3px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    .icon-btn {
-      width: 32px;
-      height: 28px;
-      background: #2a2b3d;
-      border: 1px solid #3c3e56;
-      border-radius: 6px;
-      padding: 0;
-      color: var(--text);
-    }
-    .icon-btn svg {
-      width: 16px;
-      height: 16px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .badge {
-      font-size: 11px;
-      padding: 3px 6px;
-      border-radius: 4px;
-      background: #313244;
-      color: var(--warning);
-      font-weight: bold;
-    }
-    main {
-      display: flex;
-      flex: 1;
-      height: calc(100vh - 55px);
-      height: calc(100dvh - 55px);
-      position: relative;
-    }
-    .editor-pane, .preview-pane {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      height: 100%;
-    }
-    .editor-pane {
-      border-right: 1px solid var(--border);
-    }
-    .pane-header {
-      background: #181825;
-      padding: 6px 12px;
-      font-size: 12px;
-      color: #a6adc8;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-shrink: 0;
-    }
-
-    /* Workspace & Line Number Gutter */
-    .editor-workspace {
-      display: flex;
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      background: #181825;
-      user-select: text;
-    }
-    .gutter {
-      width: 72px;
-      padding: 12px 0;
-      background: var(--gutter-bg);
-      border-right: 1px solid var(--border);
-      font-family: var(--editor-font);
-      font-size: var(--font-size);
-      line-height: var(--line-height);
-      user-select: none;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    .gutter-row {
-      display: flex;
-      align-items: center;
-      height: var(--line-height);
-      padding: 0 6px 0 8px;
-      gap: 6px;
-      cursor: pointer;
-    }
-    .gutter-row:hover .line-num {
-      color: var(--accent);
-    }
-    /* Round selection indicator circles */
-    .line-circle {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 1.5px solid #4a4d68;
-      background: transparent;
-      transition: all 0.15s ease;
-      flex-shrink: 0;
-    }
-    .gutter-row:hover .line-circle {
-      border-color: var(--accent);
-    }
-    .gutter-row.selected .line-circle {
-      background: var(--error);
-      border-color: var(--error);
-      box-shadow: 0 0 6px rgba(243, 139, 168, 0.4);
-    }
-    .line-num {
-      flex: 1;
-      text-align: right;
-      color: var(--gutter-color);
-    }
-    .gutter-row.selected {
-      background: rgba(243, 139, 168, 0.15);
-    }
-    .gutter-row.selected .line-num {
-      color: var(--error);
-      font-weight: bold;
-    }
-
-    .textarea-wrapper {
-      position: relative;
-      flex: 1;
-      height: 100%;
-      overflow: hidden;
-    }
-    textarea {
-      width: 100%;
-      height: 100%;
-      background: transparent;
-      color: var(--text);
-      border: none;
-      resize: none;
-      font-family: var(--editor-font);
-      font-size: var(--font-size);
-      line-height: var(--line-height);
-      padding: 12px 14px;
-      outline: none;
-      tab-size: 2;
-      white-space: pre;
-      overflow: auto;
-      word-break: normal;
-    }
-
-    /* Floating Multi-line Delete Action Banner */
-    .selection-action-bar {
-      position: absolute;
-      bottom: 20px;
-      left: 85px;
-      background: #1e1e2e;
-      border: 1px solid var(--error);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
-      padding: 6px 14px;
-      border-radius: 8px;
-      display: none;
-      align-items: center;
-      gap: 12px;
-      z-index: 40;
-    }
-    .selection-action-bar span {
-      font-size: 12px;
-      color: var(--text);
-      font-weight: 500;
-    }
-    .delete-lines-btn {
-      background: var(--error);
-      color: #11111b;
-      border: none;
-      padding: 5px 12px;
-      font-size: 12px;
-      font-weight: bold;
-      border-radius: 4px;
-    }
-    .delete-lines-btn:hover { background: #eba0ac; }
-
-    /* Find & Replace Floating Panel */
-    .search-panel {
-      position: absolute;
-      top: 36px;
-      right: 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px;
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
-      z-index: 50;
-      width: 330px;
-    }
-    .search-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .search-row input {
-      flex: 1;
-      padding: 4px 8px;
-      font-size: 12px;
-    }
-    .search-row button {
-      padding: 4px 8px;
-      font-size: 11px;
-    }
-    .search-stats {
-      font-size: 11px;
-      color: var(--gutter-color);
-      min-width: 45px;
-      text-align: center;
-    }
-
-    /* Drive File Manager Modal */
-    .modal-backdrop {
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(3px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-    .modal-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      width: 680px;
-      max-width: 92vw;
-      max-height: 80vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-      overflow: hidden;
-    }
-    .modal-header {
-      padding: 12px 18px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #1e1e2e;
-    }
-    .modal-body {
-      padding: 12px 18px;
-      overflow-y: auto;
-      flex: 1;
-    }
-    .drive-file-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-    .drive-file-table th, .drive-file-table td {
-      padding: 8px 10px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    .drive-file-table th {
-      color: #a6adc8;
-      font-weight: 600;
-    }
-    .drive-file-table tr:hover {
-      background: rgba(255, 255, 255, 0.03);
-    }
-    .btn-edit {
-      background: #313244;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-    .btn-delete {
-      background: #313244;
-      color: var(--error);
-      border: 1px solid var(--error);
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-
-    iframe {
-      flex: 1;
-      width: 100%;
-      border: none;
-      background: #ffffff;
-    }
-    #status {
-      font-size: 12px;
-      color: var(--success);
-      margin-left: 6px;
-    }
-    .pos-indicator {
-      font-family: var(--editor-font);
-      font-size: 11px;
-      color: var(--gutter-color);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Code Studio & Version Tracker</title>
+<!-- iPadOS / PWA Optimization -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CodeStudio">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+:root {
+--bg: #1e1e2e;
+--surface: #252538;
+--border: #383850;
+--text: #cdd6f4;
+--accent: #89b4fa;
+--success: #a6e3a1;
+--warning: #f9e2af;
+--error: #f38ba8;
+--gutter-bg: #181825;
+--gutter-color: #6c7086;
+--editor-font: "JetBrains Mono", Consolas, Menlo, "Courier New", monospace;
+--line-height: 21px;
+--font-size: 13px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+background: var(--bg);
+color: var(--text);
+display: flex;
+flex-direction: column;
+height: 100vh;
+height: 100dvh;
+overflow: hidden;
+user-select: none;
+}
+header {
+background: var(--surface);
+border-bottom: 1px solid var(--border);
+padding: 8px 14px;
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 10px;
+justify-content: space-between;
+z-index: 20;
+}
+.header-group {
+display: flex;
+align-items: center;
+gap: 8px;
+}
+input, button, select {
+background: var(--bg);
+color: var(--text);
+border: 1px solid var(--border);
+padding: 6px 10px;
+border-radius: 6px;
+font-size: 13px;
+font-family: inherit;
+}
+input:focus, select:focus {
+outline: 1px solid var(--accent);
+border-color: var(--accent);
+}
+button {
+cursor: pointer;
+font-weight: 500;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+gap: 5px;
+transition: all 0.15s ease;
+}
+button:hover:not(:disabled) { background: #313244; }
+button:disabled {
+opacity: 0.35;
+cursor: not-allowed;
+}
+button.primary { background: #45475a; border-color: var(--accent); color: var(--accent); }
+button.primary:hover:not(:disabled) { background: var(--accent); color: #11111b; }
+button.danger { background: #3a2230; border-color: var(--error); color: var(--error); }
+button.danger:hover:not(:disabled) { background: var(--error); color: #11111b; }
+/* Undo / Redo Rounded Icon Buttons */
+.history-controls {
+display: flex;
+gap: 4px;
+background: #181825;
+padding: 3px;
+border-radius: 8px;
+border: 1px solid var(--border);
+}
+.icon-btn {
+width: 32px;
+height: 28px;
+background: #2a2b3d;
+border: 1px solid #3c3e56;
+border-radius: 6px;
+padding: 0;
+color: var(--text);
+}
+.icon-btn svg {
+width: 16px;
+height: 16px;
+fill: none;
+stroke: currentColor;
+stroke-width: 2.2;
+stroke-linecap: round;
+stroke-linejoin: round;
+}
+main {
+display: flex;
+flex: 1;
+height: calc(100vh - 55px);
+height: calc(100dvh - 55px);
+position: relative;
+}
+.editor-pane, .preview-pane {
+flex: 1;
+display: flex;
+flex-direction: column;
+position: relative;
+height: 100%;
+}
+.editor-pane {
+border-right: 1px solid var(--border);
+}
+.pane-header {
+background: #181825;
+padding: 6px 12px;
+font-size: 12px;
+color: #a6adc8;
+border-bottom: 1px solid var(--border);
+display: flex;
+justify-content: space-between;
+align-items: center;
+flex-shrink: 0;
+}
+/* Workspace & Line Number Gutter */
+.editor-workspace {
+display: flex;
+flex: 1;
+position: relative;
+overflow: hidden;
+background: #181825;
+user-select: text;
+}
+.gutter {
+width: 72px;
+padding: 12px 0;
+background: var(--gutter-bg);
+border-right: 1px solid var(--border);
+font-family: var(--editor-font);
+font-size: var(--font-size);
+line-height: var(--line-height);
+user-select: none;
+overflow: hidden;
+flex-shrink: 0;
+}
+.gutter-row {
+display: flex;
+align-items: center;
+height: var(--line-height);
+padding: 0 6px 0 8px;
+gap: 6px;
+cursor: pointer;
+}
+.gutter-row:hover .line-num {
+color: var(--accent);
+}
+.line-circle {
+width: 14px;
+height: 14px;
+border-radius: 50%;
+border: 1.5px solid #4a4d68;
+background: transparent;
+transition: all 0.15s ease;
+flex-shrink: 0;
+}
+.gutter-row:hover .line-circle {
+border-color: var(--accent);
+}
+.gutter-row.selected .line-circle {
+background: var(--error);
+border-color: var(--error);
+box-shadow: 0 0 6px rgba(243, 139, 168, 0.4);
+}
+.line-num {
+flex: 1;
+text-align: right;
+color: var(--gutter-color);
+}
+.gutter-row.selected {
+background: rgba(243, 139, 168, 0.15);
+}
+.gutter-row.selected .line-num {
+color: var(--error);
+font-weight: bold;
+}
+.textarea-wrapper {
+position: relative;
+flex: 1;
+height: 100%;
+overflow: hidden;
+}
+textarea {
+width: 100%;
+height: 100%;
+background: transparent;
+color: var(--text);
+border: none;
+resize: none;
+font-family: var(--editor-font);
+font-size: var(--font-size);
+line-height: var(--line-height);
+padding: 12px 14px;
+outline: none;
+tab-size: 2;
+white-space: pre;
+overflow: auto;
+word-break: normal;
+}
+/* Floating Multi-line Delete Action Banner */
+.selection-action-bar {
+position: absolute;
+bottom: 20px;
+left: 85px;
+background: #1e1e2e;
+border: 1px solid var(--error);
+box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+padding: 6px 14px;
+border-radius: 8px;
+display: none;
+align-items: center;
+gap: 12px;
+z-index: 40;
+}
+.selection-action-bar span {
+font-size: 12px;
+color: var(--text);
+font-weight: 500;
+}
+.delete-lines-btn {
+background: var(--error);
+color: #11111b;
+border: none;
+padding: 5px 12px;
+font-size: 12px;
+font-weight: bold;
+border-radius: 4px;
+}
+.delete-lines-btn:hover { background: #eba0ac; }
+/* Find & Replace Floating Panel */
+.search-panel {
+position: absolute;
+top: 36px;
+right: 14px;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 8px;
+padding: 8px;
+display: none;
+flex-direction: column;
+gap: 6px;
+box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+z-index: 50;
+width: 330px;
+}
+.search-row {
+display: flex;
+gap: 6px;
+align-items: center;
+}
+.search-row input {
+flex: 1;
+padding: 4px 8px;
+font-size: 12px;
+}
+.search-row button {
+padding: 4px 8px;
+font-size: 11px;
+}
+.search-stats {
+font-size: 11px;
+color: var(--gutter-color);
+min-width: 45px;
+text-align: center;
+}
+/* Drive File Manager Modal */
+.modal-backdrop {
+position: fixed;
+top: 0; left: 0; width: 100vw; height: 100vh;
+background: rgba(0, 0, 0, 0.7);
+backdrop-filter: blur(3px);
+display: none;
+align-items: center;
+justify-content: center;
+z-index: 100;
+}
+.modal-card {
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 10px;
+width: 680px;
+max-width: 92vw;
+max-height: 80vh;
+display: flex;
+flex-direction: column;
+box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+overflow: hidden;
+}
+.modal-header {
+padding: 12px 18px;
+border-bottom: 1px solid var(--border);
+display: flex;
+justify-content: space-between;
+align-items: center;
+background: #1e1e2e;
+}
+.modal-body {
+padding: 12px 18px;
+overflow-y: auto;
+flex: 1;
+}
+.drive-file-table {
+width: 100%;
+border-collapse: collapse;
+font-size: 12px;
+}
+.drive-file-table th, .drive-file-table td {
+padding: 8px 10px;
+text-align: left;
+border-bottom: 1px solid var(--border);
+}
+.drive-file-table th {
+color: #a6adc8;
+font-weight: 600;
+}
+.drive-file-table tr:hover {
+background: rgba(255, 255, 255, 0.03);
+}
+.btn-edit {
+background: #313244;
+color: var(--accent);
+border: 1px solid var(--accent);
+padding: 3px 8px;
+font-size: 11px;
+}
+.btn-delete {
+background: #313244;
+color: var(--error);
+border: 1px solid var(--error);
+padding: 3px 8px;
+font-size: 11px;
+}
+iframe {
+flex: 1;
+width: 100%;
+border: none;
+background: #ffffff;
+}
+#status {
+font-size: 12px;
+color: var(--success);
+margin-left: 6px;
+}
+.pos-indicator {
+font-family: var(--editor-font);
+font-size: 11px;
+color: var(--gutter-color);
+}
+</style>
 </head>
 <body>
-
-  <header>
-    <div class="header-group">
-      <label for="baseFileName">Name:</label>
-      <input type="text" id="baseFileName" value="app" style="width: 90px;">
-      <span class="badge" id="versionBadge">v1.0</span>
-      <button class="primary" id="pasteAiBtn" title="Auto-increment and import AI code">Paste AI Code (+0.1)</button>
-      <button id="majorIncBtn" title="Bump major release">+1.0 Major</button>
-
-      <!-- Undo / Redo controls -->
-      <div class="history-controls">
-        <button class="icon-btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>
-          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
-        </button>
-        <button class="icon-btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>
-          <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="header-group">
-      <input type="password" id="gasUrl" placeholder="Apps Script URL" style="width: 160px;">
-      <button id="saveDriveBtn">Sync to Drive</button>
-      <button class="primary" id="manageDriveBtn">Manage Drive Files</button>
-      <span id="status"></span>
-    </div>
-  </header>
-
-  <main>
-    <section class="editor-pane">
-      <div class="pane-header">
-        <span id="resolvedName">app_v1.0.html</span>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span class="pos-indicator" id="cursorPos">Ln 1, Col 1</span>
-          <button id="searchToggleBtn" style="padding: 2px 8px; font-size: 11px;">Find (Ctrl+F)</button>
-          <button id="gotoLineBtn" style="padding: 2px 8px; font-size: 11px;">Go to Line (Ctrl+G)</button>
-          <button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
-        </div>
-      </div>
-
-      <!-- Restored Floating Find / Replace Box -->
-      <div class="search-panel" id="searchPanel">
-        <div class="search-row">
-          <input type="text" id="findInput" placeholder="Find...">
-          <span class="search-stats" id="searchCount">0/0</span>
-          <button id="findPrevBtn" title="Previous match">▲</button>
-          <button id="findNextBtn" title="Next match">▼</button>
-          <button id="closeSearchBtn" style="color: var(--error);">✕</button>
-        </div>
-        <div class="search-row">
-          <input type="text" id="replaceInput" placeholder="Replace with...">
-          <button id="replaceBtn">Replace</button>
-          <button id="replaceAllBtn">All</button>
-        </div>
-      </div>
-
-      <div class="editor-workspace">
-        <div class="gutter" id="lineGutter"></div>
-        <div class="textarea-wrapper">
-          <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code or click 'Paste AI Code' -->"></textarea>
-        </div>
-
-        <!-- Floating Multi-Line Delete Prompt -->
-        <div class="selection-action-bar" id="selectionActionBar">
-          <span id="selectedLinesMsg">0 lines selected</span>
-          <button class="delete-lines-btn" id="confirmDeleteLinesBtn">Delete Lines</button>
-          <button style="padding: 4px 8px; font-size: 11px;" id="cancelSelectionBtn">✕</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="preview-pane">
-      <div class="pane-header">
-        <span>Sandboxed Live Preview</span>
-      </div>
-      <iframe id="previewFrame" sandbox="allow-scripts allow-modals allow-forms allow-same-origin"></iframe>
-    </section>
-  </main>
-
-  <!-- Drive Files Manager Modal -->
-  <div class="modal-backdrop" id="driveModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Google Drive: CodeSnippets</h3>
-        <button id="closeDriveModalBtn" style="border: none; background: transparent; font-size: 18px; color: var(--gutter-color); cursor: pointer;">✕</button>
-      </div>
-      <div class="modal-body">
-        <div id="driveLoadingMsg">Fetching snippets...</div>
-        <table class="drive-file-table" id="driveFileTable" style="display: none;">
-          <thead>
-            <tr>
-              <th>File Name</th>
-              <th>Updated</th>
-              <th>Size</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="driveFileListBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let major = 1;
-    let minor = 0;
-    let currentFileId = null;
-
-    // Elements
-    const baseNameInput = document.getElementById("baseFileName");
-    const versionBadge = document.getElementById("versionBadge");
-    const resolvedName = document.getElementById("resolvedName");
-    const codeEditor = document.getElementById("codeEditor");
-    const lineGutter = document.getElementById("lineGutter");
-    const previewFrame = document.getElementById("previewFrame");
-    const gasUrlInput = document.getElementById("gasUrl");
-    const statusText = document.getElementById("status");
-    const cursorPos = document.getElementById("cursorPos");
-
-    // Search Elements
-    const searchPanel = document.getElementById("searchPanel");
-    const findInput = document.getElementById("findInput");
-    const replaceInput = document.getElementById("replaceInput");
-    const searchCount = document.getElementById("searchCount");
-    let matchIndices = [];
-    let currentMatchIndex = -1;
-
-    // Undo / Redo History Stack
-    const undoStack = [];
-    const redoStack = [];
-    let isPerformingHistoryAction = false;
-
-    function pushHistory() {
-      if (isPerformingHistoryAction) return;
-      const current = codeEditor.value;
-      if (undoStack.length && undoStack[undoStack.length - 1] === current) return;
-      undoStack.push(current);
-      if (undoStack.length > 50) undoStack.shift();
-      redoStack.length = 0;
-      updateHistoryButtons();
-    }
-
-    function updateHistoryButtons() {
-      document.getElementById("undoBtn").disabled = undoStack.length <= 1;
-      document.getElementById("redoBtn").disabled = redoStack.length === 0;
-    }
-
-    function applyHistoryState(content) {
-      isPerformingHistoryAction = true;
-      codeEditor.value = content;
-      updateLineNumbers();
-      updatePreview();
-      updateCursorInfo();
-      isPerformingHistoryAction = false;
-      updateHistoryButtons();
-    }
-
-    document.getElementById("undoBtn").addEventListener("click", () => {
-      if (undoStack.length > 1) {
-        redoStack.push(undoStack.pop());
-        applyHistoryState(undoStack[undoStack.length - 1]);
-      }
-    });
-
-    document.getElementById("redoBtn").addEventListener("click", () => {
-      if (redoStack.length > 0) {
-        const next = redoStack.pop();
-        undoStack.push(next);
-        applyHistoryState(next);
-      }
-    });
-
-    // Round Clickable Checkbox & Line Selection
-    const selectedLineSet = new Set();
-    const selectionActionBar = document.getElementById("selectionActionBar");
-    const selectedLinesMsg = document.getElementById("selectedLinesMsg");
-    let lastToggledLine = null;
-
-    function renderSelectionState() {
-      document.querySelectorAll(".gutter-row").forEach(row => {
-        const line = parseInt(row.getAttribute("data-line"), 10);
-        if (selectedLineSet.has(line)) {
-          row.classList.add("selected");
-        } else {
-          row.classList.remove("selected");
-        }
-      });
-
-      if (selectedLineSet.size > 0) {
-        selectedLinesMsg.textContent = `${selectedLineSet.size} line${selectedLineSet.size > 1 ? "s" : ""} selected`;
-        selectionActionBar.style.display = "flex";
-      } else {
-        selectionActionBar.style.display = "none";
-      }
-    }
-
-    function clearLineSelection() {
-      selectedLineSet.clear();
-      lastToggledLine = null;
-      renderSelectionState();
-    }
-
-    function toggleLineSelection(lineNumber, isShiftPressed = false) {
-      if (isShiftPressed && lastToggledLine !== null) {
-        const start = Math.min(lastToggledLine, lineNumber);
-        const end = Math.max(lastToggledLine, lineNumber);
-        for (let i = start; i <= end; i++) {
-          selectedLineSet.add(i);
-        }
-      } else {
-        if (selectedLineSet.has(lineNumber)) {
-          selectedLineSet.delete(lineNumber);
-        } else {
-          selectedLineSet.add(lineNumber);
-        }
-        lastToggledLine = lineNumber;
-      }
-      renderSelectionState();
-    }
-
-    document.getElementById("cancelSelectionBtn").addEventListener("click", clearLineSelection);
-
-    document.getElementById("confirmDeleteLinesBtn").addEventListener("click", () => {
-      if (selectedLineSet.size === 0) return;
-      const sorted = Array.from(selectedLineSet).sort((a, b) => b - a); // delete bottom-up to preserve index integrity
-      const lines = codeEditor.value.split("\n");
-
-      sorted.forEach(lineNum => {
-        if (lineNum >= 1 && lineNum <= lines.length) {
-          lines.splice(lineNum - 1, 1);
-        }
-      });
-
-      codeEditor.value = lines.join("\n");
-      showStatus(`Deleted ${sorted.length} line(s)`);
-      clearLineSelection();
-      updateLineNumbers();
-      updatePreview();
-      pushHistory();
-    });
-
-    // Line Numbers & Gutter Management
-    function updateLineNumbers() {
-      const lines = codeEditor.value.split("\n");
-      const total = lines.length || 1;
-      let gutterHTML = "";
-
-      for (let i = 1; i <= total; i++) {
-        const isSelected = selectedLineSet.has(i) ? " selected" : "";
-        gutterHTML += `
-          <div class="gutter-row${isSelected}" data-line="${i}">
-            <div class="line-circle" title="Select line ${i}"></div>
-            <div class="line-num">${i}</div>
-          </div>
-        `;
-      }
-      lineGutter.innerHTML = gutterHTML;
-      lineGutter.scrollTop = codeEditor.scrollTop;
-
-      // Clean up lines that no longer exist
-      selectedLineSet.forEach(num => {
-        if (num > total) selectedLineSet.delete(num);
-      });
-      renderSelectionState();
-    }
-
-    lineGutter.addEventListener("click", (e) => {
-      const row = e.target.closest(".gutter-row");
-      if (!row) return;
-      const line = parseInt(row.getAttribute("data-line"), 10);
-      toggleLineSelection(line, e.shiftKey);
-    });
-
-    function updateCursorInfo() {
-      const text = codeEditor.value.substring(0, codeEditor.selectionStart);
-      const lines = text.split("\n");
-      cursorPos.textContent = `Ln ${lines.length}, Col ${lines[lines.length - 1].length + 1}`;
-    }
-
-    codeEditor.addEventListener("scroll", () => {
-      lineGutter.scrollTop = codeEditor.scrollTop;
-    });
-
-    codeEditor.addEventListener("input", () => {
-      updateLineNumbers();
-      updateCursorInfo();
-      pushHistory();
-      clearTimeout(window.previewTimeout);
-      window.previewTimeout = setTimeout(updatePreview, 400);
-    });
-
-    codeEditor.addEventListener("click", () => {
-      updateCursorInfo();
-    });
-
-    codeEditor.addEventListener("keyup", (e) => {
-      updateCursorInfo();
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) updateCursorInfo();
-    });
-
-    // Go to line
-    function goToLine(targetLineNumber) {
-      if (isNaN(targetLineNumber) || targetLineNumber < 1) return;
-      const lines = codeEditor.value.split("\n");
-      if (targetLineNumber > lines.length) targetLineNumber = lines.length;
-      let charIndex = 0;
-      for (let i = 0; i < targetLineNumber - 1; i++) charIndex += lines[i].length + 1;
-      codeEditor.focus();
-      codeEditor.setSelectionRange(charIndex, charIndex + lines[targetLineNumber - 1].length);
-      codeEditor.scrollTop = (targetLineNumber - 3) * 21;
-      lineGutter.scrollTop = codeEditor.scrollTop;
-      updateCursorInfo();
-    }
-
-    document.getElementById("gotoLineBtn").addEventListener("click", () => {
-      const line = prompt("Jump to line number:");
-      if (line) goToLine(parseInt(line, 10));
-    });
-
-    // Find and Replace
-    function openSearch() {
-      searchPanel.style.display = "flex";
-      findInput.focus();
-      findInput.select();
-      performFind();
-    }
-
-    function closeSearch() {
-      searchPanel.style.display = "none";
-      codeEditor.focus();
-    }
-
-    document.getElementById("searchToggleBtn").addEventListener("click", openSearch);
-    document.getElementById("closeSearchBtn").addEventListener("click", closeSearch);
-
-    function performFind() {
-      const term = findInput.value;
-      matchIndices = [];
-      currentMatchIndex = -1;
-
-      if (!term) {
-        searchCount.textContent = "0/0";
-        return;
-      }
-
-      const content = codeEditor.value.toLowerCase();
-      const searchStr = term.toLowerCase();
-      let pos = content.indexOf(searchStr);
-
-      while (pos !== -1) {
-        matchIndices.push(pos);
-        pos = content.indexOf(searchStr, pos + searchStr.length);
-      }
-
-      if (matchIndices.length > 0) {
-        currentMatchIndex = 0;
-        selectCurrentMatch();
-      } else {
-        searchCount.textContent = "0/0";
-      }
-    }
-
-    function selectCurrentMatch() {
-      if (currentMatchIndex < 0 || currentMatchIndex >= matchIndices.length) return;
-      searchCount.textContent = `${currentMatchIndex + 1}/${matchIndices.length}`;
-
-      const startIndex = matchIndices[currentMatchIndex];
-      const matchLen = findInput.value.length;
-
-      codeEditor.focus();
-      codeEditor.setSelectionRange(startIndex, startIndex + matchLen);
-
-      const linesBefore = codeEditor.value.substring(0, startIndex).split("\n").length;
-      codeEditor.scrollTop = (linesBefore - 4) * 21;
-      lineGutter.scrollTop = codeEditor.scrollTop;
-      updateCursorInfo();
-    }
-
-    findInput.addEventListener("input", performFind);
-
-    document.getElementById("findNextBtn").addEventListener("click", () => {
-      if (!matchIndices.length) return;
-      currentMatchIndex = (currentMatchIndex + 1) % matchIndices.length;
-      selectCurrentMatch();
-    });
-
-    document.getElementById("findPrevBtn").addEventListener("click", () => {
-      if (!matchIndices.length) return;
-      currentMatchIndex = (currentMatchIndex - 1 + matchIndices.length) % matchIndices.length;
-      selectCurrentMatch();
-    });
-
-    document.getElementById("replaceBtn").addEventListener("click", () => {
-      if (currentMatchIndex === -1 || !matchIndices.length) return;
-      const start = matchIndices[currentMatchIndex];
-      const len = findInput.value.length;
-      const rep = replaceInput.value;
-
-      codeEditor.setRangeText(rep, start, start + len, "select");
-      updateLineNumbers();
-      updatePreview();
-      pushHistory();
-      performFind();
-    });
-
-    document.getElementById("replaceAllBtn").addEventListener("click", () => {
-      const term = findInput.value;
-      if (!term) return;
-      const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-      codeEditor.value = codeEditor.value.replace(regex, replaceInput.value);
-      updateLineNumbers();
-      updatePreview();
-      pushHistory();
-      performFind();
-    });
-
-    // Keyboard Shortcuts
-    window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        openSearch();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        document.getElementById("undoBtn").click();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
-        e.preventDefault();
-        document.getElementById("redoBtn").click();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
-        e.preventDefault();
-        const line = prompt("Jump to line number:");
-        if (line) goToLine(parseInt(line, 10));
-      }
-      if (e.key === "Escape") {
-        if (searchPanel.style.display === "flex") closeSearch();
-        clearLineSelection();
-      }
-    });
-
-    codeEditor.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const start = codeEditor.selectionStart;
-        const end = codeEditor.selectionEnd;
-        codeEditor.setRangeText("  ", start, end, "end");
-        updateLineNumbers();
-        pushHistory();
-      }
-    });
-
-    // AI Paste Handler & Versioning
-    function updateVersionDisplay() {
-      const versionStr = `v${major}.${minor}`;
-      versionBadge.textContent = versionStr;
-      const cleanBase = baseNameInput.value.trim().replace(/\.[^/.]+$/, "");
-      resolvedName.textContent = `${cleanBase}_${versionStr}.html`;
-    }
-
-    baseNameInput.addEventListener("input", updateVersionDisplay);
-
-    function updatePreview() {
-      const blob = new Blob([codeEditor.value], { type: "text/html" });
-      previewFrame.src = URL.createObjectURL(blob);
-    }
-
-    document.getElementById("runCodeBtn").addEventListener("click", updatePreview);
-
-    document.getElementById("pasteAiBtn").addEventListener("click", async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (!text) return;
-        let cleanCode = text;
-        const match = text.match(/```(?:html|javascript|css)?\s*([\s\S]*?)```/i);
-        if (match && match[1]) cleanCode = match[1].trim();
-
-        if (codeEditor.value.trim() !== cleanCode.trim()) {
-          codeEditor.value = cleanCode;
-          minor += 1;
-          currentFileId = null;
-          updateVersionDisplay();
-          updateLineNumbers();
-          updatePreview();
-          pushHistory();
-          showStatus(`Imported & bumped to v${major}.${minor}`);
-        } else {
-          showStatus("Code matches current content");
-        }
-      } catch (err) {
-        showStatus("Clipboard access error: " + err.message, true);
-      }
-    });
-
-    document.getElementById("majorIncBtn").addEventListener("click", () => {
-      major += 1;
-      minor = 0;
-      currentFileId = null;
-      updateVersionDisplay();
-      showStatus(`Bumped to v${major}.${minor}`);
-    });
-
-    function showStatus(msg, isError = false) {
-      statusText.textContent = msg;
-      statusText.style.color = isError ? "var(--error)" : "var(--success)";
-      setTimeout(() => { statusText.textContent = ""; }, 4000);
-    }
-
-    // Google Apps Script Drive Management
-    gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
-    gasUrlInput.addEventListener("change", () => {
-      localStorage.setItem("gas_sync_url", gasUrlInput.value.trim());
-    });
-
-    document.getElementById("saveDriveBtn").addEventListener("click", async () => {
-      const url = gasUrlInput.value.trim();
-      if (!url) return showStatus("Enter Apps Script URL first", true);
-      showStatus("Syncing to Drive...");
-      try {
-        const payload = {
-          action: "save",
-          filename: resolvedName.textContent,
-          content: codeEditor.value,
-          fileId: currentFileId
-        };
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if (result.status === "success") {
-          currentFileId = result.fileId;
-          showStatus(`Saved: ${result.name}`);
-        } else {
-          showStatus(`Save failed: ${result.message}`, true);
-        }
-      } catch (err) {
-        showStatus("Network / CORS error syncing to Drive", true);
-      }
-    });
-
-    // Drive Modal
-    const driveModal = document.getElementById("driveModal");
-    const driveLoadingMsg = document.getElementById("driveLoadingMsg");
-    const driveFileTable = document.getElementById("driveFileTable");
-    const driveFileListBody = document.getElementById("driveFileListBody");
-
-    document.getElementById("manageDriveBtn").addEventListener("click", () => {
-      const url = gasUrlInput.value.trim();
-      if (!url) return showStatus("Enter Apps Script URL first", true);
-      driveModal.style.display = "flex";
-      loadDriveFileList();
-    });
-
-    document.getElementById("closeDriveModalBtn").addEventListener("click", () => {
-      driveModal.style.display = "none";
-    });
-
-    async function loadDriveFileList() {
-      const url = gasUrlInput.value.trim();
-      driveLoadingMsg.style.display = "block";
-      driveFileTable.style.display = "none";
-      driveFileListBody.innerHTML = "";
-
-      try {
-        const res = await fetch(`${url}?action=list`);
-        const data = await res.json();
-        driveLoadingMsg.style.display = "none";
-
-        if (data.status === "success" && data.files.length) {
-          driveFileTable.style.display = "table";
-          data.files.forEach(f => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td><strong>${f.name}</strong></td>
-              <td>${new Date(f.updated).toLocaleString()}</td>
-              <td>${(f.size / 1024).toFixed(1)} KB</td>
-              <td style="text-align: right;">
-                <button class="btn-edit" data-id="${f.id}" data-name="${f.name}">Edit</button>
-                <button class="btn-delete" data-id="${f.id}" data-name="${f.name}">Delete</button>
-              </td>
-            `;
-            driveFileListBody.appendChild(tr);
-          });
-
-          driveFileListBody.querySelectorAll(".btn-edit").forEach(btn => {
-            btn.addEventListener("click", async () => {
-              const fileId = btn.getAttribute("data-id");
-              const fileName = btn.getAttribute("data-name");
-              driveModal.style.display = "none";
-              showStatus(`Loading ${fileName}...`);
-
-              const readRes = await fetch(`${url}?action=read&fileId=${fileId}`);
-              const readData = await readRes.json();
-              if (readData.status === "success") {
-                codeEditor.value = readData.content;
-                currentFileId = fileId;
-
-                const verMatch = fileName.match(/_v(\d+)\.(\d+)\./);
-                if (verMatch) {
-                  major = parseInt(verMatch[1], 10);
-                  minor = parseInt(verMatch[2], 10);
-                }
-                const baseMatch = fileName.replace(/_v\d+\.\d+\..*$/, "");
-                if (baseMatch) baseNameInput.value = baseMatch;
-
-                updateVersionDisplay();
-                updateLineNumbers();
-                updatePreview();
-                pushHistory();
-                showStatus(`Loaded: ${fileName}`);
-              }
-            });
-          });
-
-          driveFileListBody.querySelectorAll(".btn-delete").forEach(btn => {
-            btn.addEventListener("click", async () => {
-              const fileId = btn.getAttribute("data-id");
-              const fileName = btn.getAttribute("data-name");
-              if (!confirm(`Are you sure you want to delete ${fileName} from Drive?`)) return;
-
-              btn.textContent = "...";
-              btn.disabled = true;
-
-              const delRes = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action: "delete", fileId: fileId })
-              });
-              const delData = await delRes.json();
-              if (delData.status === "success") {
-                showStatus(`Deleted ${fileName}`);
-                loadDriveFileList();
-              } else {
-                alert(`Delete failed: ${delData.message}`);
-                btn.disabled = false;
-                btn.textContent = "Delete";
-              }
-            });
-          });
-
-        } else {
-          driveLoadingMsg.textContent = "No saved snippets found in your Drive folder.";
-          driveLoadingMsg.style.display = "block";
-        }
-      } catch (err) {
-        driveLoadingMsg.textContent = "Error fetching files from Google Drive.";
-      }
-    }
-
-    // Initialization
-    updateVersionDisplay();
-    updateLineNumbers();
-    pushHistory();
-  </script>
+<header>
+<div class="header-group">
+<label for="baseFileName">File:</label>
+<input type="text" id="baseFileName" value="app.html" style="width: 130px;" placeholder="filename.html">
+<!-- Reset Full Code Button -->
+<button class="danger" id="resetCodeBtn" title="Clear entire editor">Reset Full Code</button>
+<!-- Undo / Redo controls -->
+<div class="history-controls">
+<button class="icon-btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>
+<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+</button>
+<button class="icon-btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>
+<svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+</button>
+</div>
+</div>
+<div class="header-group">
+<input type="password" id="gasUrl" placeholder="Apps Script URL" style="width: 160px;">
+<button id="saveDriveBtn">Sync to Drive</button>
+<button class="primary" id="manageDriveBtn">Manage Drive Files</button>
+<span id="status"></span>
+</div>
+</header>
+<main>
+<section class="editor-pane">
+<div class="pane-header">
+<span id="resolvedName">app.html</span>
+<div style="display: flex; gap: 8px; align-items: center;">
+<span class="pos-indicator" id="cursorPos">Ln 1, Col 1</span>
+<button id="searchToggleBtn" style="padding: 2px 8px; font-size: 11px;">Find (Ctrl+F)</button>
+<button id="gotoLineBtn" style="padding: 2px 8px; font-size: 11px;">Go to Line (Ctrl+G)</button>
+<button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
+</div>
+</div>
+<!-- Floating Find / Replace Box -->
+<div class="search-panel" id="searchPanel">
+<div class="search-row">
+<input type="text" id="findInput" placeholder="Find...">
+<span class="search-stats" id="searchCount">0/0</span>
+<button id="findPrevBtn" title="Previous match">▲</button>
+<button id="findNextBtn" title="Next match">▼</button>
+<button id="closeSearchBtn" style="color: var(--error);">✕</button>
+</div>
+<div class="search-row">
+<input type="text" id="replaceInput" placeholder="Replace with...">
+<button id="replaceBtn">Replace</button>
+<button id="replaceAllBtn">All</button>
+</div>
+</div>
+<div class="editor-workspace">
+<div class="gutter" id="lineGutter"></div>
+<div class="textarea-wrapper">
+<textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste or type code here -->"></textarea>
+</div>
+<!-- Floating Multi-Line Delete Prompt -->
+<div class="selection-action-bar" id="selectionActionBar">
+<span id="selectedLinesMsg">0 lines selected</span>
+<button class="delete-lines-btn" id="confirmDeleteLinesBtn">Delete Lines</button>
+<button style="padding: 4px 8px; font-size: 11px;" id="cancelSelectionBtn">✕</button>
+</div>
+</div>
+</section>
+<section class="preview-pane">
+<div class="pane-header">
+<span>Sandboxed Live Preview</span>
+</div>
+<iframe id="previewFrame" sandbox="allow-scripts allow-modals allow-forms allow-same-origin"></iframe>
+</section>
+</main>
+<!-- Drive Files Manager Modal -->
+<div class="modal-backdrop" id="driveModal">
+<div class="modal-card">
+<div class="modal-header">
+<h3>Google Drive: CodeSnippets</h3>
+<button id="closeDriveModalBtn" style="border: none; background: transparent; font-size: 18px; color: var(--gutter-color); cursor: pointer;">✕</button>
+</div>
+<div class="modal-body">
+<div id="driveLoadingMsg">Fetching snippets...</div>
+<table class="drive-file-table" id="driveFileTable" style="display: none;">
+<thead>
+<tr>
+<th>File Name</th>
+<th>Updated</th>
+<th>Size</th>
+<th style="text-align: right;">Actions</th>
+</tr>
+</thead>
+<tbody id="driveFileListBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<script>
+let currentFileId = null;
+// Elements
+const baseNameInput = document.getElementById("baseFileName");
+const resolvedName = document.getElementById("resolvedName");
+const codeEditor = document.getElementById("codeEditor");
+const lineGutter = document.getElementById("lineGutter");
+const previewFrame = document.getElementById("previewFrame");
+const gasUrlInput = document.getElementById("gasUrl");
+const statusText = document.getElementById("status");
+const cursorPos = document.getElementById("cursorPos");
+// Search Elements
+const searchPanel = document.getElementById("searchPanel");
+const findInput = document.getElementById("findInput");
+const replaceInput = document.getElementById("replaceInput");
+const searchCount = document.getElementById("searchCount");
+let matchIndices = [];
+let currentMatchIndex = -1;
+// Undo / Redo History Stack
+const undoStack = [];
+const redoStack = [];
+let isPerformingHistoryAction = false;
+function pushHistory() {
+if (isPerformingHistoryAction) return;
+const current = codeEditor.value;
+if (undoStack.length && undoStack[undoStack.length - 1] === current) return;
+undoStack.push(current);
+if (undoStack.length > 50) undoStack.shift();
+redoStack.length = 0;
+updateHistoryButtons();
+}
+function updateHistoryButtons() {
+document.getElementById("undoBtn").disabled = undoStack.length <= 1;
+document.getElementById("redoBtn").disabled = redoStack.length === 0;
+}
+function applyHistoryState(content) {
+isPerformingHistoryAction = true;
+codeEditor.value = content;
+updateLineNumbers();
+updatePreview();
+updateCursorInfo();
+isPerformingHistoryAction = false;
+updateHistoryButtons();
+}
+document.getElementById("undoBtn").addEventListener("click", () => {
+if (undoStack.length > 1) {
+redoStack.push(undoStack.pop());
+applyHistoryState(undoStack[undoStack.length - 1]);
+}
+});
+document.getElementById("redoBtn").addEventListener("click", () => {
+if (redoStack.length > 0) {
+const next = redoStack.pop();
+undoStack.push(next);
+applyHistoryState(next);
+}
+});
+// Reset Full Code Logic
+document.getElementById("resetCodeBtn").addEventListener("click", () => {
+if (!codeEditor.value.trim()) return;
+if (confirm("Are you sure you want to completely clear the editor code?")) {
+codeEditor.value = "";
+currentFileId = null;
+updateLineNumbers();
+updatePreview();
+updateCursorInfo();
+clearLineSelection();
+pushHistory();
+showStatus("Code cleared");
+}
+});
+// Round Clickable Checkbox & Line Selection
+const selectedLineSet = new Set();
+const selectionActionBar = document.getElementById("selectionActionBar");
+const selectedLinesMsg = document.getElementById("selectedLinesMsg");
+let lastToggledLine = null;
+function renderSelectionState() {
+document.querySelectorAll(".gutter-row").forEach(row => {
+const line = parseInt(row.getAttribute("data-line"), 10);
+if (selectedLineSet.has(line)) {
+row.classList.add("selected");
+} else {
+row.classList.remove("selected");
+}
+});
+if (selectedLineSet.size > 0) {
+selectedLinesMsg.textContent = ${selectedLineSet.size} line${selectedLineSet.size > 1 ? "s" : ""} selected;
+selectionActionBar.style.display = "flex";
+} else {
+selectionActionBar.style.display = "none";
+}
+}
+function clearLineSelection() {
+selectedLineSet.clear();
+lastToggledLine = null;
+renderSelectionState();
+}
+function toggleLineSelection(lineNumber, isShiftPressed = false) {
+if (isShiftPressed && lastToggledLine !== null) {
+const start = Math.min(lastToggledLine, lineNumber);
+const end = Math.max(lastToggledLine, lineNumber);
+for (let i = start; i <= end; i++) {
+selectedLineSet.add(i);
+}
+} else {
+if (selectedLineSet.has(lineNumber)) {
+selectedLineSet.delete(lineNumber);
+} else {
+selectedLineSet.add(lineNumber);
+}
+lastToggledLine = lineNumber;
+}
+renderSelectionState();
+}
+document.getElementById("cancelSelectionBtn").addEventListener("click", clearLineSelection);
+document.getElementById("confirmDeleteLinesBtn").addEventListener("click", () => {
+if (selectedLineSet.size === 0) return;
+const sorted = Array.from(selectedLineSet).sort((a, b) => b - a);
+const lines = codeEditor.value.split("\n");
+sorted.forEach(lineNum => {
+if (lineNum >= 1 && lineNum <= lines.length) {
+lines.splice(lineNum - 1, 1);
+}
+});
+codeEditor.value = lines.join("\n");
+showStatus(Deleted ${sorted.length} line(s));
+clearLineSelection();
+updateLineNumbers();
+updatePreview();
+pushHistory();
+});
+// Line Numbers & Gutter Management
+function updateLineNumbers() {
+const lines = codeEditor.value.split("\n");
+const total = lines.length || 1;
+let gutterHTML = "";
+for (let i = 1; i <= total; i++) {
+const isSelected = selectedLineSet.has(i) ? " selected" : "";
+gutterHTML += <div class="gutter-row${isSelected}" data-line="${i}"> <div class="line-circle" title="Select line ${i}"></div> <div class="line-num">${i}</div> </div>;
+}
+lineGutter.innerHTML = gutterHTML;
+lineGutter.scrollTop = codeEditor.scrollTop;
+selectedLineSet.forEach(num => {
+if (num > total) selectedLineSet.delete(num);
+});
+renderSelectionState();
+}
+lineGutter.addEventListener("click", (e) => {
+const row = e.target.closest(".gutter-row");
+if (!row) return;
+const line = parseInt(row.getAttribute("data-line"), 10);
+toggleLineSelection(line, e.shiftKey);
+});
+function updateCursorInfo() {
+const text = codeEditor.value.substring(0, codeEditor.selectionStart);
+const lines = text.split("\n");
+cursorPos.textContent = Ln ${lines.length}, Col ${lines[lines.length - 1].length + 1};
+}
+codeEditor.addEventListener("scroll", () => {
+lineGutter.scrollTop = codeEditor.scrollTop;
+});
+codeEditor.addEventListener("input", () => {
+updateLineNumbers();
+updateCursorInfo();
+pushHistory();
+clearTimeout(window.previewTimeout);
+window.previewTimeout = setTimeout(updatePreview, 400);
+});
+codeEditor.addEventListener("click", () => {
+updateCursorInfo();
+});
+codeEditor.addEventListener("keyup", (e) => {
+updateCursorInfo();
+if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) updateCursorInfo();
+});
+// Go to line
+function goToLine(targetLineNumber) {
+if (isNaN(targetLineNumber) || targetLineNumber < 1) return;
+const lines = codeEditor.value.split("\n");
+if (targetLineNumber > lines.length) targetLineNumber = lines.length;
+let charIndex = 0;
+for (let i = 0; i < targetLineNumber - 1; i++) charIndex += lines[i].length + 1;
+codeEditor.focus();
+codeEditor.setSelectionRange(charIndex, charIndex + lines[targetLineNumber - 1].length);
+codeEditor.scrollTop = (targetLineNumber - 3) * 21;
+lineGutter.scrollTop = codeEditor.scrollTop;
+updateCursorInfo();
+}
+document.getElementById("gotoLineBtn").addEventListener("click", () => {
+const line = prompt("Jump to line number:");
+if (line) goToLine(parseInt(line, 10));
+});
+// Find and Replace
+function openSearch() {
+searchPanel.style.display = "flex";
+findInput.focus();
+findInput.select();
+performFind();
+}
+function closeSearch() {
+searchPanel.style.display = "none";
+codeEditor.focus();
+}
+document.getElementById("searchToggleBtn").addEventListener("click", openSearch);
+document.getElementById("closeSearchBtn").addEventListener("click", closeSearch);
+function performFind() {
+const term = findInput.value;
+matchIndices = [];
+currentMatchIndex = -1;
+if (!term) {
+searchCount.textContent = "0/0";
+return;
+}
+const content = codeEditor.value.toLowerCase();
+const searchStr = term.toLowerCase();
+let pos = content.indexOf(searchStr);
+while (pos !== -1) {
+matchIndices.push(pos);
+pos = content.indexOf(searchStr, pos + searchStr.length);
+}
+if (matchIndices.length > 0) {
+currentMatchIndex = 0;
+selectCurrentMatch();
+} else {
+searchCount.textContent = "0/0";
+}
+}
+function selectCurrentMatch() {
+if (currentMatchIndex < 0 || currentMatchIndex >= matchIndices.length) return;
+searchCount.textContent = ${currentMatchIndex + 1}/${matchIndices.length};
+const startIndex = matchIndices[currentMatchIndex];
+const matchLen = findInput.value.length;
+codeEditor.focus();
+codeEditor.setSelectionRange(startIndex, startIndex + matchLen);
+const linesBefore = codeEditor.value.substring(0, startIndex).split("\n").length;
+codeEditor.scrollTop = (linesBefore - 4) * 21;
+lineGutter.scrollTop = codeEditor.scrollTop;
+updateCursorInfo();
+}
+findInput.addEventListener("input", performFind);
+document.getElementById("findNextBtn").addEventListener("click", () => {
+if (!matchIndices.length) return;
+currentMatchIndex = (currentMatchIndex + 1) % matchIndices.length;
+selectCurrentMatch();
+});
+document.getElementById("findPrevBtn").addEventListener("click", () => {
+if (!matchIndices.length) return;
+currentMatchIndex = (currentMatchIndex - 1 + matchIndices.length) % matchIndices.length;
+selectCurrentMatch();
+});
+document.getElementById("replaceBtn").addEventListener("click", () => {
+if (currentMatchIndex === -1 || !matchIndices.length) return;
+const start = matchIndices[currentMatchIndex];
+const len = findInput.value.length;
+const rep = replaceInput.value;
+codeEditor.setRangeText(rep, start, start + len, "select");
+updateLineNumbers();
+updatePreview();
+pushHistory();
+performFind();
+});
+document.getElementById("replaceAllBtn").addEventListener("click", () => {
+const term = findInput.value;
+if (!term) return;
+const regex = new RegExp(term.replace(/[.*+?^{}()|[\]\\]/g, "\\&"), "gi");
+codeEditor.value = codeEditor.value.replace(regex, replaceInput.value);
+updateLineNumbers();
+updatePreview();
+pushHistory();
+performFind();
+});
+// Keyboard Shortcuts
+window.addEventListener("keydown", (e) => {
+if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+e.preventDefault();
+openSearch();
+}
+if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+e.preventDefault();
+document.getElementById("undoBtn").click();
+}
+if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+e.preventDefault();
+document.getElementById("redoBtn").click();
+}
+if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+e.preventDefault();
+const line = prompt("Jump to line number:");
+if (line) goToLine(parseInt(line, 10));
+}
+if (e.key === "Escape") {
+if (searchPanel.style.display === "flex") closeSearch();
+clearLineSelection();
+}
+});
+codeEditor.addEventListener("keydown", (e) => {
+if (e.key === "Tab") {
+e.preventDefault();
+const start = codeEditor.selectionStart;
+const end = codeEditor.selectionEnd;
+codeEditor.setRangeText("  ", start, end, "end");
+updateLineNumbers();
+pushHistory();
+}
+});
+// Filename Management & Preview
+function updateFileName() {
+let name = baseNameInput.value.trim();
+if (!name) name = "snippet.html";
+resolvedName.textContent = name;
+}
+baseNameInput.addEventListener("input", updateFileName);
+function updatePreview() {
+const blob = new Blob([codeEditor.value], { type: "text/html" });
+previewFrame.src = URL.createObjectURL(blob);
+}
+document.getElementById("runCodeBtn").addEventListener("click", updatePreview);
+function showStatus(msg, isError = false) {
+statusText.textContent = msg;
+statusText.style.color = isError ? "var(--error)" : "var(--success)";
+setTimeout(() => { statusText.textContent = ""; }, 4000);
+}
+// Google Apps Script Drive Management
+gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
+gasUrlInput.addEventListener("change", () => {
+localStorage.setItem("gas_sync_url", gasUrlInput.value.trim());
+});
+document.getElementById("saveDriveBtn").addEventListener("click", async () => {
+const url = gasUrlInput.value.trim();
+if (!url) return showStatus("Enter Apps Script URL first", true);
+showStatus("Syncing to Drive...");
+try {
+const payload = {
+action: "save",
+filename: resolvedName.textContent,
+content: codeEditor.value,
+fileId: currentFileId
+};
+const res = await fetch(url, {
+method: "POST",
+headers: { "Content-Type": "text/plain;charset=utf-8" },
+body: JSON.stringify(payload)
+});
+const result = await res.json();
+if (result.status === "success") {
+currentFileId = result.fileId;
+showStatus(Saved: ${result.name});
+} else {
+showStatus(Save failed: ${result.message}, true);
+}
+} catch (err) {
+showStatus("Network / CORS error syncing to Drive", true);
+}
+});
+// Drive Modal
+const driveModal = document.getElementById("driveModal");
+const driveLoadingMsg = document.getElementById("driveLoadingMsg");
+const driveFileTable = document.getElementById("driveFileTable");
+const driveFileListBody = document.getElementById("driveFileListBody");
+document.getElementById("manageDriveBtn").addEventListener("click", () => {
+const url = gasUrlInput.value.trim();
+if (!url) return showStatus("Enter Apps Script URL first", true);
+driveModal.style.display = "flex";
+loadDriveFileList();
+});
+document.getElementById("closeDriveModalBtn").addEventListener("click", () => {
+driveModal.style.display = "none";
+});
+async function loadDriveFileList() {
+const url = gasUrlInput.value.trim();
+driveLoadingMsg.style.display = "block";
+driveFileTable.style.display = "none";
+driveFileListBody.innerHTML = "";
+try {
+const res = await fetch(${url}?action=list);
+const data = await res.json();
+driveLoadingMsg.style.display = "none";
+if (data.status === "success" && data.files.length) {
+driveFileTable.style.display = "table";
+data.files.forEach(f => {
+const tr = document.createElement("tr");
+tr.innerHTML = <td><strong>${f.name}</strong></td> <td>${new Date(f.updated).toLocaleString()}</td> <td>${(f.size / 1024).toFixed(1)} KB</td> <td style="text-align: right;"> <button class="btn-edit" data-id="${f.id}" data-name="${f.name}">Edit</button> <button class="btn-delete" data-id="${f.id}" data-name="${f.name}">Delete</button> </td>;
+driveFileListBody.appendChild(tr);
+});
+driveFileListBody.querySelectorAll(".btn-edit").forEach(btn => {
+btn.addEventListener("click", async () => {
+const fileId = btn.getAttribute("data-id");
+const fileName = btn.getAttribute("data-name");
+driveModal.style.display = "none";
+showStatus(Loading ${fileName}...);
+const readRes = await fetch(${url}?action=read&fileId=${fileId});
+const readData = await readRes.json();
+if (readData.status === "success") {
+codeEditor.value = readData.content;
+currentFileId = fileId;
+baseNameInput.value = fileName;
+updateFileName();
+updateLineNumbers();
+updatePreview();
+pushHistory();
+showStatus(Loaded: ${fileName});
+}
+});
+});
+driveFileListBody.querySelectorAll(".btn-delete").forEach(btn => {
+btn.addEventListener("click", async () => {
+const fileId = btn.getAttribute("data-id");
+const fileName = btn.getAttribute("data-name");
+if (!confirm(Are you sure you want to delete ${fileName} from Drive?)) return;
+btn.textContent = "...";
+btn.disabled = true;
+const delRes = await fetch(url, {
+method: "POST",
+headers: { "Content-Type": "text/plain;charset=utf-8" },
+body: JSON.stringify({ action: "delete", fileId: fileId })
+});
+const delData = await delRes.json();
+if (delData.status === "success") {
+showStatus(Deleted ${fileName});
+loadDriveFileList();
+} else {
+alert(Delete failed: ${delData.message});
+btn.disabled = false;
+btn.textContent = "Delete";
+}
+});
+});
+} else {
+driveLoadingMsg.textContent = "No saved snippets found in your Drive folder.";
+driveLoadingMsg.style.display = "block";
+}
+} catch (err) {
+driveLoadingMsg.textContent = "Error fetching files from Google Drive.";
+}
+}
+// Initialization
+updateFileName();
+updateLineNumbers();
+pushHistory();
+</script>
 </body>
 </html>
