@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Studio & Version Tracker</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --surface: #252538;
+      --border: #383850;
+      --text: #cdd6f4;
+      --accent: #89b4fa;
+      --success: #a6e3a1;
+      --warning: #f9e2af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      justify-content: space-between;
+    }
+    .header-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    input, button, select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    input:focus, select:focus {
+      outline: 1px solid var(--accent);
+      border-color: var(--accent);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+    button:hover { background: #313244; }
+    button.primary { background: #45475a; border-color: var(--accent); color: var(--accent); }
+    button.primary:hover { background: var(--accent); color: #11111b; }
+    .badge {
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      background: #313244;
+      color: var(--warning);
+      font-weight: bold;
+    }
+    main {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 55px);
+    }
+    .editor-pane, .preview-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .editor-pane {
+      border-right: 1px solid var(--border);
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      background: #181825;
+      color: #cdd6f4;
+      border: none;
+      resize: none;
+      font-family: "JetBrains Mono", Consolas, Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 14px;
+      outline: none;
+      tab-size: 2;
+    }
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #ffffff;
+    }
+    .pane-header {
+      background: #181825;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #a6adc8;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #status {
+      font-size: 12px;
+      color: var(--success);
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-group">
+      <label for="baseFileName">Base Name:</label>
+      <input type="text" id="baseFileName" value="app" style="width: 120px;" placeholder="Filename">
+      <span class="badge" id="versionBadge">v1.0</span>
+      <button class="primary" id="pasteAiBtn" title="Detects code updates and auto-increments version">Paste AI Code (+0.1)</button>
+      <button id="majorIncBtn" title="Bump major release">+1.0 Major</button>
+    </div>
+
+    <div class="header-group">
+      <input type="password" id="gasUrl" placeholder="Paste Apps Script Web App URL" style="width: 220px;">
+      <button id="saveDriveBtn">Sync to Drive</button>
+      <button id="loadDriveBtn">Pull from Drive</button>
+      <span id="status"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="editor-pane">
+      <div class="pane-header">
+        <span id="resolvedName">app_v1.0.html</span>
+        <button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
+      </div>
+      <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code or click 'Paste AI Code' -->"></textarea>
+    </section>
+
+    <section class="preview-pane">
+      <div class="pane-header">
+        <span>Sandboxed Live Preview</span>
+      </div>
+      <iframe id="previewFrame" sandbox="allow-scripts allow-modals allow-forms allow-same-origin"></iframe>
+    </section>
+  </main>
+
+  <script>
+    let major = 1;
+    let minor = 0;
+    let currentFileId = null;
+
+    const baseNameInput = document.getElementById("baseFileName");
+    const versionBadge = document.getElementById("versionBadge");
+    const resolvedName = document.getElementById("resolvedName");
+    const codeEditor = document.getElementById("codeEditor");
+    const previewFrame = document.getElementById("previewFrame");
+    const gasUrlInput = document.getElementById("gasUrl");
+    const statusText = document.getElementById("status");
+
+    // Persist GAS URL locally
+    gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
+    gasUrlInput.addEventListener("change", () => {
+      localStorage.setItem("gas_sync_url", gasUrlInput.value.trim());
+    });
+
+    function updateVersionDisplay() {
+      const versionStr = `v${major}.${minor}`;
+      versionBadge.textContent = versionStr;
+      const cleanBase = baseNameInput.value.trim().replace(/\.[^/.]+$/, "");
+      resolvedName.textContent = `${cleanBase}_${versionStr}.html`;
+    }
+
+    baseNameInput.addEventListener("input", updateVersionDisplay);
+
+    function updatePreview() {
+      const blob = new Blob([codeEditor.value], { type: "text/html" });
+      previewFrame.src = URL.createObjectURL(blob);
+    }
+
+    codeEditor.addEventListener("input", () => {
+      // Debounced simple preview update
+      clearTimeout(window.previewTimeout);
+      window.previewTimeout = setTimeout(updatePreview, 400);
+    });
+
+    document.getElementById("runCodeBtn").addEventListener("click", updatePreview);
+
+    // AI Paste Handler: Extracts code blocks if markdown is passed and increments minor version
+    document.getElementById("pasteAiBtn").addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) return;
+
+        let cleanCode = text;
+        // Strip markdown backticks if AI output wrapped code in ```html ... ```
+        const markdownMatch = text.match(/```(?:html|javascript|css)?\s*([\s\S]*?)```/i);
+        if (markdownMatch && markdownMatch[1]) {
+          cleanCode = markdownMatch[1].trim();
+        }
+
+        // Only increment version if code actually changed
+        if (codeEditor.value.trim() !== cleanCode.trim()) {
+          codeEditor.value = cleanCode;
+          minor += 1;
+          currentFileId = null; // Mark as new version branch for Drive
+          updateVersionDisplay();
+          updatePreview();
+          showStatus(`Imported & bumped to v${major}.${minor}`);
+        } else {
+          showStatus("Code matches current editor content");
+        }
+      } catch (err) {
+        showStatus("Clipboard access error: " + err.message, true);
+      }
+    });
+
+    document.getElementById("majorIncBtn").addEventListener("click", () => {
+      major += 1;
+      minor = 0;
+      currentFileId = null;
+      updateVersionDisplay();
+      showStatus(`Bumped to v${major}.${minor}`);
+    });
+
+    function showStatus(msg, isError = false) {
+      statusText.textContent = msg;
+      statusText.style.color = isError ? "#f38ba8" : "#a6e3a1";
+      setTimeout(() => { statusText.textContent = ""; }, 4000);
+    }
+
+    // Google Apps Script Sync - POST (Save)
+    document.getElementById("saveDriveBtn").addEventListener("click", async () => {
+      const url = gasUrlInput.value.trim();
+      if (!url) return showStatus("Enter Apps Script URL first", true);
+
+      showStatus("Syncing to Drive...");
+      try {
+        const payload = {
+          action: "save",
+          filename: resolvedName.textContent,
+          content: codeEditor.value,
+          fileId: currentFileId
+        };
+
+        // Note: Using text/plain avoids CORS preflight failures on Apps Script web app endpoints
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+        if (result.status === "success") {
+          currentFileId = result.fileId;
+          showStatus(`Saved: ${result.name}`);
+        } else {
+          showStatus(`Save failed: ${result.message}`, true);
+        }
+      } catch (err) {
+        showStatus("Network / CORS error syncing to Drive", true);
+      }
+    });
+
+    // Google Apps Script Pull - GET (Load)
+    document.getElementById("loadDriveBtn").addEventListener("click", async () => {
+      const url = gasUrlInput.value.trim();
+      if (!url) return showStatus("Enter Apps Script URL first", true);
+
+      showStatus("Fetching files...");
+      try {
+        const listRes = await fetch(`${url}?action=list`);
+        const listData = await listRes.json();
+
+        if (listData.status !== "success" || !listData.files.length) {
+          return showStatus("No files found in Drive folder", true);
+        }
+
+        // Show prompt to select file
+        const options = listData.files.map((f, i) => `${i + 1}: ${f.name}`).join("\n");
+        const pick = prompt(`Select file number to load:\n${options}`);
+        const idx = parseInt(pick, 10) - 1;
+
+        if (isNaN(idx) || idx < 0 || idx >= listData.files.length) return;
+
+        const targetFile = listData.files[idx];
+        showStatus(`Loading ${targetFile.name}...`);
+
+        const fileRes = await fetch(`${url}?action=read&fileId=${targetFile.id}`);
+        const fileData = await fileRes.json();
+
+        if (fileData.status === "success") {
+          codeEditor.value = fileData.content;
+          currentFileId = targetFile.id;
+          
+          // Attempt to parse version from filename (e.g. name_v2.3.html)
+          const verMatch = fileData.name.match(/_v(\d+)\.(\d+)\./);
+          if (verMatch) {
+            major = parseInt(verMatch[1], 10);
+            minor = parseInt(verMatch[2], 10);
+          }
+          const baseMatch = fileData.name.replace(/_v\d+\.\d+\..*$/, "");
+          if (baseMatch) baseNameInput.value = baseMatch;
+
+          updateVersionDisplay();
+          updatePreview();
+          showStatus(`Loaded ${fileData.name}`);
+        } else {
+          showStatus(`Read failed: ${fileData.message}`, true);
+        }
+      } catch (err) {
+        showStatus("Error pulling from Drive", true);
+      }
+    });
+
+    // Initial render
+    updateVersionDisplay();
+  </script>
+</body>
+</html>
