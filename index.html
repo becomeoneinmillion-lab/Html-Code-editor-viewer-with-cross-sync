@@ -16,7 +16,6 @@
       --error: #f38ba8;
       --gutter-bg: #181825;
       --gutter-color: #6c7086;
-      --active-line: rgba(137, 180, 250, 0.08);
       --editor-font: "JetBrains Mono", Consolas, Menlo, "Courier New", monospace;
       --line-height: 21px;
       --font-size: 13px;
@@ -30,6 +29,7 @@
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      user-select: none;
     }
     header {
       background: var(--surface);
@@ -38,7 +38,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       justify-content: space-between;
       z-index: 10;
     }
@@ -52,7 +52,7 @@
       color: var(--text);
       border: 1px solid var(--border);
       padding: 6px 10px;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 13px;
       font-family: inherit;
     }
@@ -63,11 +63,48 @@
     button {
       cursor: pointer;
       font-weight: 500;
-      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.15s ease;
     }
-    button:hover { background: #313244; }
+    button:hover:not(:disabled) { background: #313244; }
+    button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
     button.primary { background: #45475a; border-color: var(--accent); color: var(--accent); }
-    button.primary:hover { background: var(--accent); color: #11111b; }
+    button.primary:hover:not(:disabled) { background: var(--accent); color: #11111b; }
+
+    /* Undo / Redo Rounded Icon Buttons */
+    .history-controls {
+      display: flex;
+      gap: 4px;
+      background: #181825;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .icon-btn {
+      width: 34px;
+      height: 30px;
+      background: #2a2b3d;
+      border: 1px solid #3c3e56;
+      border-radius: 6px;
+      padding: 0;
+      color: var(--text);
+    }
+    .icon-btn svg {
+      width: 17px;
+      height: 17px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .badge {
       font-size: 11px;
       padding: 3px 6px;
@@ -103,14 +140,15 @@
       align-items: center;
       flex-shrink: 0;
     }
-    
-    /* Code Editor Container with Line Numbers */
+
+    /* Workspace & Line Number Gutter */
     .editor-workspace {
       display: flex;
       flex: 1;
       position: relative;
       overflow: hidden;
       background: #181825;
+      user-select: text;
     }
     .gutter {
       width: 52px;
@@ -125,14 +163,19 @@
       user-select: none;
       overflow: hidden;
       flex-shrink: 0;
+      cursor: pointer;
     }
     .gutter-line {
       padding-right: 10px;
       height: var(--line-height);
-      cursor: pointer;
     }
     .gutter-line:hover {
       color: var(--accent);
+    }
+    .gutter-line.selected {
+      background: rgba(243, 139, 168, 0.25);
+      color: var(--error);
+      font-weight: bold;
     }
     .textarea-wrapper {
       position: relative;
@@ -157,42 +200,102 @@
       overflow: auto;
       word-break: normal;
     }
-    
-    /* Search & Replace Floating Bar */
-    .search-panel {
+
+    /* Floating Multi-line Delete Action Banner */
+    .selection-action-bar {
       position: absolute;
-      top: 36px;
-      right: 20px;
+      bottom: 20px;
+      left: 70px;
+      background: #1e1e2e;
+      border: 1px solid var(--error);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      padding: 6px 14px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 40;
+    }
+    .selection-action-bar span {
+      font-size: 12px;
+      color: var(--text);
+    }
+    .delete-lines-btn {
+      background: var(--error);
+      color: #11111b;
+      border: none;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .delete-lines-btn:hover { background: #eba0ac; }
+
+    /* Drive File Manager Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(3px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px;
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      z-index: 50;
-      width: 330px;
-    }
-    .search-row {
+      border-radius: 10px;
+      width: 680px;
+      max-width: 90vw;
+      max-height: 80vh;
       display: flex;
-      gap: 6px;
-      align-items: center;
+      flex-direction: column;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      overflow: hidden;
     }
-    .search-row input {
+    .modal-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e1e2e;
+    }
+    .modal-body {
+      padding: 12px 18px;
+      overflow-y: auto;
       flex: 1;
-      padding: 4px 8px;
+    }
+    .drive-file-table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: 12px;
     }
-    .search-row button {
-      padding: 4px 8px;
+    .drive-file-table th, .drive-file-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .drive-file-table th {
+      color: #a6adc8;
+      font-weight: 600;
+    }
+    .drive-file-table tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .btn-edit {
+      background: #313244;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 3px 8px;
       font-size: 11px;
     }
-    .search-stats {
+    .btn-delete {
+      background: #313244;
+      color: var(--error);
+      border: 1px solid var(--error);
+      padding: 3px 8px;
       font-size: 11px;
-      color: var(--gutter-color);
-      min-width: 45px;
-      text-align: center;
     }
 
     iframe {
@@ -217,17 +320,27 @@
 
   <header>
     <div class="header-group">
-      <label for="baseFileName">Base Name:</label>
-      <input type="text" id="baseFileName" value="app" style="width: 110px;" placeholder="Filename">
+      <label for="baseFileName">Name:</label>
+      <input type="text" id="baseFileName" value="app" style="width: 100px;">
       <span class="badge" id="versionBadge">v1.0</span>
-      <button class="primary" id="pasteAiBtn" title="Detects code updates and auto-increments version">Paste AI Code (+0.1)</button>
+      <button class="primary" id="pasteAiBtn" title="Auto-increment and import AI code">Paste AI Code (+0.1)</button>
       <button id="majorIncBtn" title="Bump major release">+1.0 Major</button>
+
+      <!-- Undo / Redo group -->
+      <div class="history-controls">
+        <button class="icon-btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>
+          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+        </button>
+        <button class="icon-btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>
+          <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        </button>
+      </div>
     </div>
 
     <div class="header-group">
-      <input type="password" id="gasUrl" placeholder="Paste Apps Script Web App URL" style="width: 210px;">
+      <input type="password" id="gasUrl" placeholder="Apps Script URL" style="width: 170px;">
       <button id="saveDriveBtn">Sync to Drive</button>
-      <button id="loadDriveBtn">Pull from Drive</button>
+      <button class="primary" id="manageDriveBtn">Manage Drive Files</button>
       <span id="status"></span>
     </div>
   </header>
@@ -238,34 +351,24 @@
         <span id="resolvedName">app_v1.0.html</span>
         <div style="display: flex; gap: 8px; align-items: center;">
           <span class="pos-indicator" id="cursorPos">Ln 1, Col 1</span>
-          <button id="searchToggleBtn" style="padding: 2px 8px; font-size: 11px;">Find (Ctrl+F)</button>
           <button id="gotoLineBtn" style="padding: 2px 8px; font-size: 11px;">Go to Line (Ctrl+G)</button>
           <button id="runCodeBtn" style="padding: 2px 8px; font-size: 11px;">Update Preview</button>
         </div>
       </div>
 
-      <!-- Integrated Floating Find / Replace Box -->
-      <div class="search-panel" id="searchPanel">
-        <div class="search-row">
-          <input type="text" id="findInput" placeholder="Find...">
-          <span class="search-stats" id="searchCount">0/0</span>
-          <button id="findPrevBtn" title="Previous match">▲</button>
-          <button id="findNextBtn" title="Next match">▼</button>
-          <button id="closeSearchBtn" style="color: var(--error);">✕</button>
-        </div>
-        <div class="search-row">
-          <input type="text" id="replaceInput" placeholder="Replace with...">
-          <button id="replaceBtn">Replace</button>
-          <button id="replaceAllBtn">All</button>
-        </div>
-      </div>
-
       <div class="editor-workspace">
         <div class="gutter" id="lineGutter">
-          <div class="gutter-line">1</div>
+          <div class="gutter-line" data-line="1">1</div>
         </div>
         <div class="textarea-wrapper">
-          <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code or click 'Paste AI Code' -->"></textarea>
+          <textarea id="codeEditor" spellcheck="false" placeholder="<!-- Paste raw code here -->"></textarea>
+        </div>
+
+        <!-- Floating Multi-Line Delete Prompt -->
+        <div class="selection-action-bar" id="selectionActionBar">
+          <span id="selectedLinesMsg">Lines 0-0 selected</span>
+          <button class="delete-lines-btn" id="confirmDeleteLinesBtn">Delete Selected Lines</button>
+          <button style="padding: 3px 6px; font-size: 11px;" id="cancelSelectionBtn">✕</button>
         </div>
       </div>
     </section>
@@ -278,11 +381,36 @@
     </section>
   </main>
 
+  <!-- Drive Files Manager Modal -->
+  <div class="modal-backdrop" id="driveModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Google Drive: CodeSnippets</h3>
+        <button id="closeDriveModalBtn" style="border: none; background: transparent; font-size: 18px; color: var(--gutter-color);">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="driveLoadingMsg">Fetching snippets...</div>
+        <table class="drive-file-table" id="driveFileTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>File Name</th>
+              <th>Updated</th>
+              <th>Size</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="driveFileListBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <script>
     let major = 1;
     let minor = 0;
     let currentFileId = null;
 
+    // Elements
     const baseNameInput = document.getElementById("baseFileName");
     const versionBadge = document.getElementById("versionBadge");
     const resolvedName = document.getElementById("resolvedName");
@@ -293,21 +421,121 @@
     const statusText = document.getElementById("status");
     const cursorPos = document.getElementById("cursorPos");
 
-    // Search elements
-    const searchPanel = document.getElementById("searchPanel");
-    const findInput = document.getElementById("findInput");
-    const replaceInput = document.getElementById("replaceInput");
-    const searchCount = document.getElementById("searchCount");
+    // History stack for Undo / Redo
+    const undoStack = [];
+    const redoStack = [];
+    let isPerformingHistoryAction = false;
 
-    let matchIndices = [];
-    let currentMatchIndex = -1;
+    function pushHistory() {
+      if (isPerformingHistoryAction) return;
+      const current = codeEditor.value;
+      if (undoStack.length && undoStack[undoStack.length - 1] === current) return;
+      undoStack.push(current);
+      if (undoStack.length > 50) undoStack.shift();
+      redoStack.length = 0; // Clear forward changes
+      updateHistoryButtons();
+    }
 
-    // Persist GAS URL locally
-    gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
-    gasUrlInput.addEventListener("change", () => {
-      localStorage.setItem("gas_sync_url", gasUrlInput.value.trim());
+    function updateHistoryButtons() {
+      document.getElementById("undoBtn").disabled = undoStack.length <= 1;
+      document.getElementById("redoBtn").disabled = redoStack.length === 0;
+    }
+
+    function applyHistoryState(content) {
+      isPerformingHistoryAction = true;
+      codeEditor.value = content;
+      updateLineNumbers();
+      updatePreview();
+      updateCursorInfo();
+      isPerformingHistoryAction = false;
+      updateHistoryButtons();
+    }
+
+    document.getElementById("undoBtn").addEventListener("click", () => {
+      if (undoStack.length > 1) {
+        redoStack.push(undoStack.pop());
+        applyHistoryState(undoStack[undoStack.length - 1]);
+      }
     });
 
+    document.getElementById("redoBtn").addEventListener("click", () => {
+      if (redoStack.length > 0) {
+        const nextState = redoStack.pop();
+        undoStack.push(nextState);
+        applyHistoryState(nextState);
+      }
+    });
+
+    // Multi-line selection via Line Numbers Gutter
+    let isSelectingGutter = false;
+    let selectionStartLine = null;
+    let selectionEndLine = null;
+
+    const selectionActionBar = document.getElementById("selectionActionBar");
+    const selectedLinesMsg = document.getElementById("selectedLinesMsg");
+
+    function renderGutterSelection() {
+      const min = Math.min(selectionStartLine, selectionEndLine);
+      const max = Math.max(selectionStartLine, selectionEndLine);
+
+      document.querySelectorAll(".gutter-line").forEach(el => {
+        const line = parseInt(el.getAttribute("data-line"), 10);
+        if (line >= min && line <= max) {
+          el.classList.add("selected");
+        } else {
+          el.classList.remove("selected");
+        }
+      });
+
+      selectedLinesMsg.textContent = `Lines ${min} to ${max} selected (${max - min + 1} lines)`;
+      selectionActionBar.style.display = "flex";
+    }
+
+    function clearGutterSelection() {
+      document.querySelectorAll(".gutter-line.selected").forEach(el => el.classList.remove("selected"));
+      selectionActionBar.style.display = "none";
+      selectionStartLine = null;
+      selectionEndLine = null;
+    }
+
+    lineGutter.addEventListener("mousedown", (e) => {
+      if (!e.target.classList.contains("gutter-line")) return;
+      isSelectingGutter = true;
+      const line = parseInt(e.target.getAttribute("data-line"), 10);
+      selectionStartLine = line;
+      selectionEndLine = line;
+      renderGutterSelection();
+    });
+
+    lineGutter.addEventListener("mouseover", (e) => {
+      if (!isSelectingGutter || !e.target.classList.contains("gutter-line")) return;
+      selectionEndLine = parseInt(e.target.getAttribute("data-line"), 10);
+      renderGutterSelection();
+    });
+
+    window.addEventListener("mouseup", () => {
+      isSelectingGutter = false;
+    });
+
+    document.getElementById("cancelSelectionBtn").addEventListener("click", clearGutterSelection);
+
+    document.getElementById("confirmDeleteLinesBtn").addEventListener("click", () => {
+      if (selectionStartLine === null || selectionEndLine === null) return;
+      const min = Math.min(selectionStartLine, selectionEndLine);
+      const max = Math.max(selectionStartLine, selectionEndLine);
+
+      const lines = codeEditor.value.split("\n");
+      lines.splice(min - 1, max - min + 1);
+      
+      codeEditor.value = lines.join("\n");
+      clearGutterSelection();
+      updateLineNumbers();
+      updatePreview();
+      pushHistory();
+      showStatus(`Deleted lines ${min} to ${max}`);
+    });
+
+    // Editor sync & line numbers
     function updateVersionDisplay() {
       const versionStr = `v${major}.${minor}`;
       versionBadge.textContent = versionStr;
@@ -322,13 +550,11 @@
       previewFrame.src = URL.createObjectURL(blob);
     }
 
-    // Line Numbers & Gutter Management
     function updateLineNumbers() {
       const lines = codeEditor.value.split("\n");
-      const totalLines = lines.length || 1;
-      
+      const total = lines.length || 1;
       let gutterHTML = "";
-      for (let i = 1; i <= totalLines; i++) {
+      for (let i = 1; i <= total; i++) {
         gutterHTML += `<div class="gutter-line" data-line="${i}">${i}</div>`;
       }
       lineGutter.innerHTML = gutterHTML;
@@ -338,12 +564,9 @@
     function updateCursorInfo() {
       const text = codeEditor.value.substring(0, codeEditor.selectionStart);
       const lines = text.split("\n");
-      const currentLine = lines.length;
-      const currentCol = lines[lines.length - 1].length + 1;
-      cursorPos.textContent = `Ln ${currentLine}, Col ${currentCol}`;
+      cursorPos.textContent = `Ln ${lines.length}, Col ${lines[lines.length - 1].length + 1}`;
     }
 
-    // Synchronize scrolling between editor and gutter
     codeEditor.addEventListener("scroll", () => {
       lineGutter.scrollTop = codeEditor.scrollTop;
     });
@@ -351,22 +574,46 @@
     codeEditor.addEventListener("input", () => {
       updateLineNumbers();
       updateCursorInfo();
+      pushHistory();
       clearTimeout(window.previewTimeout);
       window.previewTimeout = setTimeout(updatePreview, 400);
     });
 
-    codeEditor.addEventListener("click", updateCursorInfo);
+    codeEditor.addEventListener("click", () => {
+      updateCursorInfo();
+      clearGutterSelection();
+    });
+
     codeEditor.addEventListener("keyup", (e) => {
       updateCursorInfo();
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-        updateCursorInfo();
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) updateCursorInfo();
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        document.getElementById("undoBtn").click();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        e.preventDefault();
+        document.getElementById("redoBtn").click();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        const line = prompt("Jump to line number:");
+        if (line) goToLine(parseInt(line, 10));
       }
     });
 
-    // Go to line functionality (Clicking line number or shortcut)
-    lineGutter.addEventListener("click", (e) => {
-      if (e.target.classList.contains("gutter-line")) {
-        goToLine(parseInt(e.target.getAttribute("data-line"), 10));
+    codeEditor.addEventListener("keydown", (e) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const start = codeEditor.selectionStart;
+        const end = codeEditor.selectionEnd;
+        codeEditor.setRangeText("  ", start, end, "end");
+        updateLineNumbers();
+        pushHistory();
       }
     });
 
@@ -374,18 +621,11 @@
       if (isNaN(targetLineNumber) || targetLineNumber < 1) return;
       const lines = codeEditor.value.split("\n");
       if (targetLineNumber > lines.length) targetLineNumber = lines.length;
-
       let charIndex = 0;
-      for (let i = 0; i < targetLineNumber - 1; i++) {
-        charIndex += lines[i].length + 1;
-      }
-
+      for (let i = 0; i < targetLineNumber - 1; i++) charIndex += lines[i].length + 1;
       codeEditor.focus();
       codeEditor.setSelectionRange(charIndex, charIndex + lines[targetLineNumber - 1].length);
-
-      // Scroll cursor into view
-      const lineHeight = 21;
-      codeEditor.scrollTop = (targetLineNumber - 3) * lineHeight;
+      codeEditor.scrollTop = (targetLineNumber - 3) * 21;
       lineGutter.scrollTop = codeEditor.scrollTop;
       updateCursorInfo();
     }
@@ -395,142 +635,16 @@
       if (line) goToLine(parseInt(line, 10));
     });
 
-    // Integrated Search and Replace
-    function openSearch() {
-      searchPanel.style.display = "flex";
-      findInput.focus();
-      findInput.select();
-      performFind();
-    }
-
-    function closeSearch() {
-      searchPanel.style.display = "none";
-      codeEditor.focus();
-    }
-
-    document.getElementById("searchToggleBtn").addEventListener("click", openSearch);
-    document.getElementById("closeSearchBtn").addEventListener("click", closeSearch);
-
-    function performFind() {
-      const term = findInput.value;
-      matchIndices = [];
-      currentMatchIndex = -1;
-
-      if (!term) {
-        searchCount.textContent = "0/0";
-        return;
-      }
-
-      const content = codeEditor.value.toLowerCase();
-      const searchStr = term.toLowerCase();
-      let pos = content.indexOf(searchStr);
-
-      while (pos !== -1) {
-        matchIndices.push(pos);
-        pos = content.indexOf(searchStr, pos + searchStr.length);
-      }
-
-      if (matchIndices.length > 0) {
-        currentMatchIndex = 0;
-        selectCurrentMatch();
-      } else {
-        searchCount.textContent = "0/0";
-      }
-    }
-
-    function selectCurrentMatch() {
-      if (currentMatchIndex < 0 || currentMatchIndex >= matchIndices.length) return;
-      searchCount.textContent = `${currentMatchIndex + 1}/${matchIndices.length}`;
-
-      const startIndex = matchIndices[currentMatchIndex];
-      const matchLen = findInput.value.length;
-
-      codeEditor.focus();
-      codeEditor.setSelectionRange(startIndex, startIndex + matchLen);
-
-      // Auto-scroll calculation
-      const linesBefore = codeEditor.value.substring(0, startIndex).split("\n").length;
-      codeEditor.scrollTop = (linesBefore - 4) * 21;
-      lineGutter.scrollTop = codeEditor.scrollTop;
-      updateCursorInfo();
-    }
-
-    findInput.addEventListener("input", performFind);
-
-    document.getElementById("findNextBtn").addEventListener("click", () => {
-      if (!matchIndices.length) return;
-      currentMatchIndex = (currentMatchIndex + 1) % matchIndices.length;
-      selectCurrentMatch();
-    });
-
-    document.getElementById("findPrevBtn").addEventListener("click", () => {
-      if (!matchIndices.length) return;
-      currentMatchIndex = (currentMatchIndex - 1 + matchIndices.length) % matchIndices.length;
-      selectCurrentMatch();
-    });
-
-    document.getElementById("replaceBtn").addEventListener("click", () => {
-      if (currentMatchIndex === -1 || !matchIndices.length) return;
-      const start = matchIndices[currentMatchIndex];
-      const len = findInput.value.length;
-      const rep = replaceInput.value;
-
-      codeEditor.setRangeText(rep, start, start + len, "select");
-      updateLineNumbers();
-      updatePreview();
-      performFind();
-    });
-
-    document.getElementById("replaceAllBtn").addEventListener("click", () => {
-      const term = findInput.value;
-      if (!term) return;
-      const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-      codeEditor.value = codeEditor.value.replace(regex, replaceInput.value);
-      updateLineNumbers();
-      updatePreview();
-      performFind();
-    });
-
-    // Keyboard Shortcuts (Ctrl+F, Ctrl+G, Escape, Tab Key Indent)
-    window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        openSearch();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
-        e.preventDefault();
-        const line = prompt("Jump to line number:");
-        if (line) goToLine(parseInt(line, 10));
-      }
-      if (e.key === "Escape" && searchPanel.style.display === "flex") {
-        closeSearch();
-      }
-    });
-
-    // Indent handling on Tab
-    codeEditor.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const start = codeEditor.selectionStart;
-        const end = codeEditor.selectionEnd;
-        codeEditor.setRangeText("  ", start, end, "end");
-        updateLineNumbers();
-      }
-    });
-
     document.getElementById("runCodeBtn").addEventListener("click", updatePreview);
 
-    // AI Paste Handler: Strips code fences and increments version
+    // AI Paste Handler
     document.getElementById("pasteAiBtn").addEventListener("click", async () => {
       try {
         const text = await navigator.clipboard.readText();
         if (!text) return;
-
         let cleanCode = text;
-        const markdownMatch = text.match(/```(?:html|javascript|css)?\s*([\s\S]*?)```/i);
-        if (markdownMatch && markdownMatch[1]) {
-          cleanCode = markdownMatch[1].trim();
-        }
+        const match = text.match(/```(?:html|javascript|css)?\s*([\s\S]*?)```/i);
+        if (match && match[1]) cleanCode = match[1].trim();
 
         if (codeEditor.value.trim() !== cleanCode.trim()) {
           codeEditor.value = cleanCode;
@@ -539,9 +653,10 @@
           updateVersionDisplay();
           updateLineNumbers();
           updatePreview();
+          pushHistory();
           showStatus(`Imported & bumped to v${major}.${minor}`);
         } else {
-          showStatus("Code matches current editor content");
+          showStatus("Code matches current content");
         }
       } catch (err) {
         showStatus("Clipboard access error: " + err.message, true);
@@ -562,11 +677,16 @@
       setTimeout(() => { statusText.textContent = ""; }, 4000);
     }
 
-    // Google Apps Script Sync - POST (Save)
+    // Google Apps Script URL Persist
+    gasUrlInput.value = localStorage.getItem("gas_sync_url") || "";
+    gasUrlInput.addEventListener("change", () => {
+      localStorage.setItem("gas_sync_url", gasUrlInput.value.trim());
+    });
+
+    // Save to Drive
     document.getElementById("saveDriveBtn").addEventListener("click", async () => {
       const url = gasUrlInput.value.trim();
       if (!url) return showStatus("Enter Apps Script URL first", true);
-
       showStatus("Syncing to Drive...");
       try {
         const payload = {
@@ -575,13 +695,11 @@
           content: codeEditor.value,
           fileId: currentFileId
         };
-
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(payload)
         });
-
         const result = await res.json();
         if (result.status === "success") {
           currentFileId = result.fileId;
@@ -594,59 +712,121 @@
       }
     });
 
-    // Google Apps Script Pull - GET (Load)
-    document.getElementById("loadDriveBtn").addEventListener("click", async () => {
+    // Manage Drive Modal Logic
+    const driveModal = document.getElementById("driveModal");
+    const driveLoadingMsg = document.getElementById("driveLoadingMsg");
+    const driveFileTable = document.getElementById("driveFileTable");
+    const driveFileListBody = document.getElementById("driveFileListBody");
+
+    document.getElementById("manageDriveBtn").addEventListener("click", () => {
       const url = gasUrlInput.value.trim();
       if (!url) return showStatus("Enter Apps Script URL first", true);
-
-      showStatus("Fetching files...");
-      try {
-        const listRes = await fetch(`${url}?action=list`);
-        const listData = await listRes.json();
-
-        if (listData.status !== "success" || !listData.files.length) {
-          return showStatus("No files found in Drive folder", true);
-        }
-
-        const options = listData.files.map((f, i) => `${i + 1}: ${f.name}`).join("\n");
-        const pick = prompt(`Select file number to load:\n${options}`);
-        const idx = parseInt(pick, 10) - 1;
-
-        if (isNaN(idx) || idx < 0 || idx >= listData.files.length) return;
-
-        const targetFile = listData.files[idx];
-        showStatus(`Loading ${targetFile.name}...`);
-
-        const fileRes = await fetch(`${url}?action=read&fileId=${targetFile.id}`);
-        const fileData = await fileRes.json();
-
-        if (fileData.status === "success") {
-          codeEditor.value = fileData.content;
-          currentFileId = targetFile.id;
-          
-          const verMatch = fileData.name.match(/_v(\d+)\.(\d+)\./);
-          if (verMatch) {
-            major = parseInt(verMatch[1], 10);
-            minor = parseInt(verMatch[2], 10);
-          }
-          const baseMatch = fileData.name.replace(/_v\d+\.\d+\..*$/, "");
-          if (baseMatch) baseNameInput.value = baseMatch;
-
-          updateVersionDisplay();
-          updateLineNumbers();
-          updatePreview();
-          showStatus(`Loaded ${fileData.name}`);
-        } else {
-          showStatus(`Read failed: ${fileData.message}`, true);
-        }
-      } catch (err) {
-        showStatus("Error pulling from Drive", true);
-      }
+      driveModal.style.display = "flex";
+      loadDriveFileList();
     });
 
-    // Initial setup
+    document.getElementById("closeDriveModalBtn").addEventListener("click", () => {
+      driveModal.style.display = "none";
+    });
+
+    async function loadDriveFileList() {
+      const url = gasUrlInput.value.trim();
+      driveLoadingMsg.style.display = "block";
+      driveFileTable.style.display = "none";
+      driveFileListBody.innerHTML = "";
+
+      try {
+        const res = await fetch(`${url}?action=list`);
+        const data = await res.json();
+        driveLoadingMsg.style.display = "none";
+
+        if (data.status === "success" && data.files.length) {
+          driveFileTable.style.display = "table";
+          data.files.forEach(f => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td><strong>${f.name}</strong></td>
+              <td>${new Date(f.updated).toLocaleString()}</td>
+              <td>${(f.size / 1024).toFixed(1)} KB</td>
+              <td style="text-align: right;">
+                <button class="btn-edit" data-id="${f.id}" data-name="${f.name}">Edit</button>
+                <button class="btn-delete" data-id="${f.id}" data-name="${f.name}">Delete</button>
+              </td>
+            `;
+            driveFileListBody.appendChild(tr);
+          });
+
+          // Edit action
+          driveFileListBody.querySelectorAll(".btn-edit").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const fileId = btn.getAttribute("data-id");
+              const fileName = btn.getAttribute("data-name");
+              driveModal.style.display = "none";
+              showStatus(`Loading ${fileName}...`);
+
+              const readRes = await fetch(`${url}?action=read&fileId=${fileId}`);
+              const readData = await readRes.json();
+              if (readData.status === "success") {
+                codeEditor.value = readData.content;
+                currentFileId = fileId;
+
+                const verMatch = fileName.match(/_v(\d+)\.(\d+)\./);
+                if (verMatch) {
+                  major = parseInt(verMatch[1], 10);
+                  minor = parseInt(verMatch[2], 10);
+                }
+                const baseMatch = fileName.replace(/_v\d+\.\d+\..*$/, "");
+                if (baseMatch) baseNameInput.value = baseMatch;
+
+                updateVersionDisplay();
+                updateLineNumbers();
+                updatePreview();
+                pushHistory();
+                showStatus(`Loaded: ${fileName}`);
+              }
+            });
+          });
+
+          // Delete action
+          driveFileListBody.querySelectorAll(".btn-delete").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const fileId = btn.getAttribute("data-id");
+              const fileName = btn.getAttribute("data-name");
+              if (!confirm(`Are you sure you want to delete ${fileName} from Drive?`)) return;
+
+              btn.textContent = "...";
+              btn.disabled = true;
+
+              const delRes = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "delete", fileId: fileId })
+              });
+              const delData = await delRes.json();
+              if (delData.status === "success") {
+                showStatus(`Deleted ${fileName}`);
+                loadDriveFileList(); // Refresh table
+              } else {
+                alert(`Delete failed: ${delData.message}`);
+                btn.disabled = false;
+                btn.textContent = "Delete";
+              }
+            });
+          });
+
+        } else {
+          driveLoadingMsg.textContent = "No saved snippets found in your Drive folder.";
+          driveLoadingMsg.style.display = "block";
+        }
+      } catch (err) {
+        driveLoadingMsg.textContent = "Error fetching files from Google Drive.";
+      }
+    }
+
+    // Initialize with first snapshot
     updateVersionDisplay();
     updateLineNumbers();
+    pushHistory();
   </script>
 </body>
 </html>
